@@ -98,7 +98,15 @@ input,textarea,select{font-family:inherit}
 .sidebar{
   background:linear-gradient(180deg,var(--bg2),var(--bg));border-right:1px solid var(--border-soft);
   padding:26px 18px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;height:100vh;
+  overflow:hidden;   /* a rolagem fica na lista de navegação, não na coluna toda */
 }
+.side-logo{flex:none}
+.nav-label{flex:none}
+#navItems{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:6px;
+  margin:0 -6px;padding:0 6px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.16) transparent}
+#navItems::-webkit-scrollbar{width:7px}
+#navItems::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:6px}
+#navItems::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.24)}
 .side-logo{height:58px;object-fit:contain;object-position:left;margin:2px 4px 24px}
 .nav-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.14em;color:var(--muted2);margin:16px 10px 6px;font-weight:700}
 .nav-item{
@@ -108,7 +116,7 @@ input,textarea,select{font-family:inherit}
 .nav-item svg{width:19px;height:19px;flex:none;stroke-width:1.9}
 .nav-item:hover{background:var(--surface);color:var(--text)}
 .nav-item.active{background:linear-gradient(135deg,rgba(44,166,224,.16),rgba(44,166,224,.04));color:var(--cyan-bright);border-color:rgba(44,166,224,.3)}
-.side-foot{margin-top:auto;border-top:1px solid var(--border-soft);padding-top:16px}
+.side-foot{flex:none;margin-top:12px;border-top:1px solid var(--border-soft);padding-top:16px}
 .user-row{display:flex;align-items:center;gap:8px}
 .user-chip{flex:1;min-width:0;display:flex;align-items:center;gap:11px;padding:7px 9px;border-radius:11px;
   background:transparent;border:1px solid transparent;cursor:pointer;text-align:left;transition:.15s;
@@ -240,6 +248,10 @@ fieldset legend{font-size:.76rem;font-weight:700;color:var(--cyan-bright);paddin
 .result-desenvolvimento svg{color:var(--gold)}
 .result-manter{background:rgba(242,107,132,.1);border:1px solid rgba(242,107,132,.3);color:#F6A9B8}
 .result-manter svg{color:var(--red)}
+.result-reavaliar{background:var(--gold-soft);border:1px solid rgba(232,181,74,.3);color:#F1D89A}
+.result-reavaliar svg{color:var(--gold)}
+.result-feedback{background:rgba(44,166,224,.1);border:1px solid rgba(44,166,224,.32);color:#9AD8F2}
+.result-feedback svg{color:var(--cyan)}
 .ref-list{display:flex;flex-direction:column;gap:12px}
 .ref-list .k{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted2);font-weight:700;margin-bottom:3px}
 .ref-list .v{font-size:.88rem;line-height:1.55;white-space:pre-wrap;color:var(--muted)}
@@ -656,7 +668,7 @@ function sideFootHtml(){
   return `<div class="user-row">
     <button class="user-chip" onclick="modalPerfil()" title="Editar meu perfil">
       ${avatarHtml(S.user,38)}
-      <div style="min-width:0"><div class="nm">${esc(S.user.nome)}</div><div class="rl">${esc(S.user.papel||ROLE_LABEL[S.user.perfil]||"")}</div></div>
+      <div style="min-width:0"><div class="nm">${esc(S.user.nome)}</div><div class="rl">${esc(S.user.cargoNome || S.user.papel || ROLE_LABEL[S.user.perfil] || "")}</div></div>
     </button>
     <button class="logout-btn" onclick="logout()" title="Sair" aria-label="Sair">${ICON.logout}</button>
   </div>`;
@@ -703,6 +715,9 @@ function setHead(title,sub,actions){
 function loading(){ el('content').innerHTML=`<div class="center-load" style="min-height:300px"><div class="spinner"></div></div>`; }
 document.querySelectorAll && true;
 
+async function refreshMe(){
+  try{ const r=await api('me'); if(r&&r.usuario){ S.user=r.usuario; const f=el('sideFoot'); if(f) f.innerHTML=sideFootHtml(); } }catch(e){}
+}
 async function go(view){
   S.view=view; toggleSidebar(false);
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===view));
@@ -712,6 +727,7 @@ async function go(view){
     if(fn) await fn();
     else el('content').innerHTML = '<div class="empty">Tela não encontrada.</div>';
     if(view==='meus-feedbacks'){ try{ await api('marcarVisto',{canal:'feedbacks'}); }catch(e){} }
+    refreshMe();
     atualizarNotificacoes();
   }catch(e){
     el('content').innerHTML = `<div class="card"><div class="inline-note">${ICON.alert}<span>${esc(e.message)}</span></div></div>`;
@@ -1193,7 +1209,7 @@ async function abrirColaborador(id){
     ].filter(Boolean);
     const avalRows = avals.length ? avals.map(a=>`
       <div class="item-card" style="justify-content:space-between">
-        <div><b>${esc(a.periodo||'Avaliação')}</b><br><span class="page-sub">Consenso: <span class="mono">${nota(a.notaConsenso)}</span>/100 ${a.resultado?`· ${a.resultado.nivel==='apto'?'Elegível':a.resultado.nivel==='desenvolvimento'?'Em desenvolvimento':'Manter nível'}`:''}</span></div>
+        <div><b>${esc(a.periodo||'Avaliação')}</b><br><span class="page-sub">Consenso: <span class="mono">${a.soFeedback?'—':nota(a.notaConsenso)}</span>/100 ${a.resultado?`· ${a.resultado.nivel==='apto'?'Apto':a.resultado.nivel==='reavaliar'?'Reavaliar em 3 meses':a.resultado.nivel==='feedback'?'Feedback':'Não apto'}`:''}</span></div>
         <div style="display:flex;gap:10px;align-items:center">${statusPill(a.status)}<button class="btn btn-primary btn-sm" onclick="abrirAvaliacao('${a.id}')">Abrir</button></div>
       </div>`).join('') : `<div class="empty">${ICON.chart}<p>Nenhuma avaliação ainda.</p></div>`;
     el('content').innerHTML=`
@@ -1689,12 +1705,12 @@ VIEWS.avaliacoes = async function(){
       <td>${esc(a.periodo||'—')}</td>
       <td>${statusPill(a.status)}</td>
       <td class="mono">${nota(a.notaAuto)}</td><td class="mono">${nota(a.notaGestor)}</td><td class="mono" style="color:var(--green)">${nota(a.notaConsenso)}</td>
-      <td>${a.resultado?`<span class="pill ${a.resultado.nivel==='apto'?'green':a.resultado.nivel==='desenvolvimento'?'gold':'red'}"><span class="dot"></span>${a.resultado.nivel==='apto'?'Apto':a.resultado.nivel==='desenvolvimento'?'Em desenv.':'Manter'}</span>`:'—'}</td>
+      <td>${a.resultado?`<span class="pill ${a.resultado.nivel==='apto'?'green':a.resultado.nivel==='reavaliar'?'gold':a.resultado.nivel==='feedback'?'cyan':'red'}"><span class="dot"></span>${a.resultado.nivel==='apto'?'Apto':a.resultado.nivel==='reavaliar'?'Reavaliar':a.resultado.nivel==='feedback'?'Feedback':'Não apto'}</span>`:'—'}</td>
       <td class="row-actions"><button class="btn btn-primary btn-sm" onclick="abrirAvaliacao('${a.id}')">Abrir</button></td>
     </tr>`).join('')}</tbody></table></div>`;
 };
 function nota(n){ return (n===''||n==null)?'—':Number(n).toFixed(1); }
-const STATUS={aguardando_autoavaliacao:['gold','Autoavaliação'],aguardando_gestor:['cyan','Avaliação do gestor'],aguardando_consenso:['amber','Consenso'],concluida:['green','Concluída']};
+const STATUS={aguardando_autoavaliacao:['gold','Autoavaliação'],aguardando_gestor:['cyan','Avaliação do gestor'],aguardando_consenso:['amber','Consenso'],aguardando_finalizacao:['green','Aguardando desfecho'],reavaliar_agendada:['gold','Reavaliação agendada'],concluida:['green','Concluída']};
 function statusPill(s){ const x=STATUS[s]||['gray',s]; return `<span class="pill ${x[0]}"><span class="dot"></span>${x[1]}</span>`; }
 
 /* ---------------- COLABORADOR ---------------- */
@@ -1777,31 +1793,38 @@ function pontuarLocal(notas,criterios,metas){
   if(w<=0) return null;
   return Math.round((p/w)*1000)/10;
 }
-function classificarLocal(p){
+function classificarLocal(p,soFeedback){
+  if(soFeedback) return {nivel:'feedback',rotulo:'Avaliação de feedback (sem efeito de promoção)',barra:0};
   if(p==null) return null;
-  if(p>=90) return {nivel:'apto',rotulo:'Elegível para promoção / avanço de função'};
-  if(p>=80) return {nivel:'desenvolvimento',rotulo:'Em desenvolvimento'};
-  return {nivel:'manter',rotulo:'Permanecer no nível atual e elaborar plano de desenvolvimento'};
+  if(p>=80) return {nivel:'apto',rotulo:'Apto a concorrer à promoção',barra:p};
+  if(p>=70) return {nivel:'reavaliar',rotulo:'Reavaliar em 3 meses',barra:p};
+  return {nivel:'manter',rotulo:'Não apto à promoção no momento',barra:p};
 }
-function scoreCard(p,label){
-  const cls=classificarLocal(p);
-  const color = !cls?'var(--muted)':cls.nivel==='apto'?'var(--green)':cls.nivel==='desenvolvimento'?'var(--gold)':'var(--red)';
-  const pct = p==null?0:Math.max(0,Math.min(100,p));
+// data ISO (yyyy-mm-dd) daqui a N meses, para agendar a reavaliação
+function somaMesesISO(n){ const d=new Date(); d.setMonth(d.getMonth()+n); return d.toISOString().slice(0,10); }
+// cor por nível de resultado
+function corResultado(nivel){ return nivel==='apto'?'var(--green)':nivel==='reavaliar'?'var(--gold)':nivel==='feedback'?'var(--cyan)':'var(--red)'; }
+function scoreCard(p,label,soFeedback){
+  const cls=classificarLocal(p,soFeedback);
+  const color = soFeedback?'var(--cyan)':(!cls?'var(--muted)':corResultado(cls.nivel));
+  const pct = soFeedback?0:(p==null?0:Math.max(0,Math.min(100,p)));
+  const numTxt = soFeedback?'—':(p==null?'—':p.toFixed(1));
   return `<div class="score-wrap">
-    <div class="score-num" style="color:${color}">${p==null?'—':p.toFixed(1)}<small>/100</small></div>
+    <div class="score-num" style="color:${color}">${numTxt}<small>/100</small></div>
     <div class="score-meta"><div class="k" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted2);font-weight:700">${esc(label||'Pontuação')}</div>
-      <div class="score-track"><span style="width:${pct}%;background:${color}"></span><span class="tick" style="left:80%"></span><span class="tick" style="left:90%"></span></div>
-      <div style="display:flex;justify-content:space-between;font-size:.66rem;color:var(--muted2);margin-top:4px"><span>0</span><span>80 · desenv.</span><span>90 · promoção</span></div>
-    </div></div>`;
+      <div class="score-track"><span style="width:${pct}%;background:${color}"></span><span class="tick" style="left:70%"></span><span class="tick" style="left:80%"></span></div>
+      <div style="display:flex;justify-content:space-between;font-size:.66rem;color:var(--muted2);margin-top:4px"><span>0</span><span>70 · reavaliar</span><span>80 · apto</span></div>
+    </div>${soFeedback?'<div class="hint" style="margin-top:6px;color:var(--cyan)">Barra travada: avaliação de feedback, sem efeito de promoção.</div>':''}</div>`;
 }
-function resultBand(av,p){
-  const cls=classificarLocal(p===''||p==null?null:Number(p)); if(!cls) return '';
+function resultBand(av,p,soFeedback){
+  const cls=classificarLocal(p===''||p==null?null:Number(p), soFeedback); if(!cls) return '';
   let extra='';
   if(cls.nivel==='apto' && av.cargo && av.cargo.percentualAvanco){
     const perc=Number(av.cargo.percentualAvanco)||0;
     if(av.cargo.salario){ const novo=Number(av.cargo.salario)*(1+perc/100); extra=` — avanço de +${perc}% (${money(av.cargo.salario)} → ${money(novo)})`; }
     else if(perc) extra=` — avanço de +${perc}%`;
   }
+  if(cls.nivel==='reavaliar' && av.reavaliarEm){ extra=` — reabre em ${fmtDay(av.reavaliarEm)}`; }
   const icon = cls.nivel==='apto'?ICON.check:ICON.info;
   return `<div class="result-band result-${cls.nivel}">${icon}<span>${esc(cls.rotulo)}${extra}</span></div>`;
 }
@@ -1838,14 +1861,15 @@ function blocoAvaliacao(key,criterios,metas,promocao,valores,titulo,footerHtml){
   const metaRows=metas.length?(`<div class="block-title">Metas do consenso anterior <span class="wbadge">Peso ${PESO_METAS_UI}%</span></div>`+
     metas.map((m,i)=>rowEscala('meta',i,`<span class="meta-goal">${esc(m)}</span>`,vm[i])).join('')):'';
   const promoRows=promocao.length?(`<div class="block-title">Critérios para promoção — o colaborador atende?</div>`+
+    `<div class="scale-hint" style="margin-top:-2px"><span>Para concorrer à promoção, todos precisam ser "Sim".</span></div>`+
     promocao.map((q,i)=>rowSimNao(i,`<span class="meta-goal">${esc(q)}</span>`,vp[i])).join('')):'';
   return `<div class="card-h"><h3>${esc(titulo)}</h3></div>
-    <div class="scale-hint"><span>0 = rendimento ruim</span><span>5 = excelente</span></div>
     <div id="scale_${key}">
+      ${promoRows}
       <div class="block-title">Critérios de desempenho</div>
+      <div class="scale-hint"><span>0 = rendimento ruim</span><span>5 = excelente</span></div>
       ${critRows}
       ${metaRows}
-      ${promoRows}
     </div>
     <div style="margin-top:18px;display:flex;flex-direction:column;gap:14px">${footerHtml||''}</div>`;
 }
@@ -1878,7 +1902,10 @@ async function abrirAvaliacao(id){
   setHead(`Avaliação · ${av.colaboradorNome||'—'}`, `${av.periodo||''}${av.cargoNome?' · '+av.cargoNome:''}`, `<button class="btn btn-ghost" onclick="go('${isColab?'minhas-avaliacoes':'avaliacoes'}')">Voltar</button>`);
 
   const order=['aguardando_autoavaliacao','aguardando_gestor','aguardando_consenso','concluida'];
-  const cur=order.indexOf(av.status);
+  // status finais mapeiam para a última etapa
+  let cur=order.indexOf(av.status);
+  if(av.status==='aguardando_finalizacao'||av.status==='reavaliar_agendada') cur=2; // consenso feito, aguardando desfecho/reabrir
+  if(av.status==='concluida') cur=3;
   const stepsHtml = `<div class="steps">${[
     ['Autoavaliação','o colaborador avalia'],
     ['Avaliação do gestor','o gestor avalia'],
@@ -1905,21 +1932,40 @@ async function abrirAvaliacao(id){
       pfpmFields(av)+
       `<div class="field"><label>Metas para o próximo ciclo <span class="page-sub">(uma por linha — serão avaliadas na próxima avaliação)</span></label><textarea id="metasNovas" placeholder="Ex.: Reduzir retrabalho para menos de 3%">${esc(av.metasNovas||'')}</textarea></div>`+
       `<div class="field"><label>Feedback para melhoria</label><textarea id="feedback" placeholder="Feedback final consolidado…">${esc(av.feedback||'')}</textarea></div>`+
-      `<div style="display:flex;gap:10px"><button class="btn btn-ghost btn-sm" id="bSalvarConsenso">Salvar rascunho</button><button class="btn btn-gold btn-sm" id="bConcluir">${ICON.check}<span>Concluir avaliação</span></button></div>`);
+      `<div style="display:flex;gap:10px"><button class="btn btn-ghost btn-sm" id="bSalvarConsenso">Salvar rascunho</button><button class="btn btn-gold btn-sm" id="bConcluir">${ICON.check}<span>Concluir consenso</span></button></div>`);
+  } else if(!isColab && av.status==='aguardando_finalizacao'){
+    editor = `<div class="card-h"><h3>Desfecho da promoção</h3><span class="pill green"><span class="dot"></span>Apto</span></div>
+      <div class="inline-note" style="margin-bottom:14px">${ICON.check}<span>O colaborador ficou <b>apto a concorrer à promoção</b> (${(av.notaConsenso!=null?Number(av.notaConsenso).toFixed(1):'—')}/100). Registre agora o desfecho.</span></div>
+      <div class="field"><label>Desfecho</label>
+        <select id="desfecho">
+          <option value="">— selecione —</option>
+          <option value="aprovado">Aprovado — promover / avançar de função</option>
+          <option value="reprovado">Reprovado — não promover</option>
+          <option value="desistencia">Desistência — o colaborador desistiu</option>
+          <option value="adiado">Adiado — decidir mais adiante</option>
+        </select></div>
+      <div class="field"><label>Observação (opcional)</label><textarea id="desfechoObs" placeholder="Justificativa ou próximos passos…"></textarea></div>
+      <button class="btn btn-primary btn-sm" id="bFinalizar">${ICON.check}<span>Registrar desfecho</span></button>`;
+  } else if(av.status==='reavaliar_agendada'){
+    editor = `<div class="card-h"><h3>Reavaliação agendada</h3><span class="pill gold"><span class="dot"></span>Reavaliar</span></div>
+      <div class="inline-note" style="margin-bottom:14px">${ICON.info}<span>Resultado na faixa de reavaliação (${(av.notaConsenso!=null?Number(av.notaConsenso).toFixed(1):'—')}/100). Uma nova avaliação está agendada para <b>${fmtDay(av.reavaliarEm)}</b>.</span></div>
+      ${(!isColab)?`<button class="btn btn-primary btn-sm" id="bReabrir">${ICON.chart}<span>Reabrir avaliação agora</span></button>`:'<p class="page-sub">Aguarde a data agendada; seu gestor reabrirá a avaliação.</p>'}`;
   }
   const temEditor = !!editKey; // lockedBlock não é editor real
 
   const scoreLabel = editKey?'Pontuação parcial':'Pontuação (consenso)';
   const seedScore = editKey?seed:av.consenso;
   const scoreInicial = pontuarLocal(seedScore||{criterios:{},metas:{}},criterios,metas);
-  const bandFinal = (!editKey && av.notaConsenso!==''&&av.notaConsenso!=null)?resultBand(av,av.notaConsenso):'';
+  const mostrarResultado = ['aguardando_finalizacao','reavaliar_agendada','concluida'].indexOf(av.status)!==-1;
+  const bandFinal = (!editKey && mostrarResultado && av.notaConsenso!==''&&av.notaConsenso!=null)?resultBand(av,av.notaConsenso,av.soFeedback):'';
+  const desfechoBand = (av.status==='concluida' && av.desfecho)?`<div class="result-band result-${av.desfecho==='aprovado'?'apto':av.desfecho==='reprovado'?'manter':'reavaliar'}">${ICON.info}<span>Desfecho: <b>${({aprovado:'Aprovado',reprovado:'Reprovado',desistencia:'Desistência',adiado:'Adiado'})[av.desfecho]||av.desfecho}</b>${av.desfechoObs?' — '+esc(av.desfechoObs):''}</span></div>`:'';
 
   el('content').innerHTML = `${stepsHtml}
     <div class="grid cols-2" style="align-items:start">
       <div class="card">
         <div class="card-h"><h3>Versatilidade — teia de competências</h3></div>
         <div id="radarBox"></div>
-        <div id="scoreLiveBox" style="margin-top:14px">${scoreCard(scoreInicial,scoreLabel)}${bandFinal}</div>
+        <div id="scoreLiveBox" style="margin-top:14px">${scoreCard(editKey?scoreInicial:(mostrarResultado?av.notaConsenso:scoreInicial),scoreLabel,(!editKey&&av.soFeedback))}${bandFinal}${desfechoBand}</div>
       </div>
       <div class="card">${editor || resumoAvaliacao(av,isColab)}</div>
     </div>
@@ -1956,19 +2002,51 @@ function ligarEditor(av,criterios,metas,promocao,editKey){
   });
   const bAuto=el('bAuto'); if(bAuto) bAuto.onclick=async()=>{
     const notas=coletarNotas('auto'); if(!completo(notas,criterios,metas,promocao)) return toast('Responda todos os critérios, metas e perguntas de promoção.','err');
-    bAuto.disabled=true; try{ await api('salvarAutoAvaliacao',{avaliacaoId:av.id,notas,pontosFortes:val('pf'),pontosMelhoria:val('pm')}); toast('Autoavaliação enviada.','ok'); abrirAvaliacao(av.id);}catch(e){ toast(e.message,'err'); bAuto.disabled=false; }
+    // trava: todos os critérios de promoção precisam ser "Sim" para enviar
+    const total=(promocao?promocao.length:0);
+    let temNao=false; for(let i=0;i<total;i++){ if(String(notas.promocao[i])!=='sim'){ temNao=true; break; } }
+    if(total>0 && temNao) return toast('Para enviar, marque "Sim" em todos os critérios de promoção. Com algum "Não", você não concorre à promoção neste ciclo.','err');
+    bAuto.disabled=true; try{ await api('salvarAutoAvaliacao',{avaliacaoId:av.id,notas,pontosFortes:val('pf'),pontosMelhoria:val('pm'),enviar:true}); toast('Autoavaliação enviada.','ok'); abrirAvaliacao(av.id);}catch(e){ toast(e.message,'err'); bAuto.disabled=false; }
+  };
+  const bAutoDraft=el('bAutoDraft'); if(bAutoDraft) bAutoDraft.onclick=async()=>{
+    const notas=coletarNotas('auto');
+    bAutoDraft.disabled=true; try{ await api('salvarAutoAvaliacao',{avaliacaoId:av.id,notas,pontosFortes:val('pf'),pontosMelhoria:val('pm'),enviar:false}); toast('Rascunho salvo.','ok'); bAutoDraft.disabled=false;}catch(e){ toast(e.message,'err'); bAutoDraft.disabled=false; }
   };
   const bGestor=el('bGestor'); if(bGestor) bGestor.onclick=async()=>{
     const notas=coletarNotas('gestor'); if(!completo(notas,criterios,metas,promocao)) return toast('Responda todos os critérios, metas e perguntas de promoção.','err');
     bGestor.disabled=true; try{ await api('salvarAvaliacaoGestor',{avaliacaoId:av.id,notas}); toast('Avaliação do gestor enviada.','ok'); abrirAvaliacao(av.id);}catch(e){ toast(e.message,'err'); bGestor.disabled=false; }
   };
-  const salvarCons=async(concluir)=>{
+  const salvarCons=async(concluir,reavaliarEm)=>{
     const notas=coletarNotas('consenso'); if(concluir && !completo(notas,criterios,metas,promocao)) return toast('Defina o consenso de todos os itens (critérios, metas e promoção).','err');
     const payload={avaliacaoId:av.id,notas,metas:val('metasNovas'),feedback:val('feedback'),pontosFortes:val('pf'),pontosMelhoria:val('pm'),concluir};
-    try{ await api('salvarConsenso',payload); toast(concluir?'Avaliação concluída.':'Rascunho salvo.','ok'); abrirAvaliacao(av.id);}catch(e){ toast(e.message,'err'); }
+    if(reavaliarEm) payload.reavaliarEm=reavaliarEm;
+    try{ await api('salvarConsenso',payload); toast(concluir?'Consenso registrado.':'Rascunho salvo.','ok'); abrirAvaliacao(av.id);}catch(e){ toast(e.message,'err'); }
   };
+  const bFinalizar=el('bFinalizar'); if(bFinalizar) bFinalizar.onclick=async()=>{
+    const d=val('desfecho'); if(!d) return toast('Selecione o desfecho.','err');
+    bFinalizar.disabled=true; try{ await api('finalizarAvaliacao',{avaliacaoId:av.id,desfecho:d,desfechoObs:val('desfechoObs')}); toast('Desfecho registrado.','ok'); abrirAvaliacao(av.id);}catch(e){ toast(e.message,'err'); bFinalizar.disabled=false; }
+  };
+  const bReabrir=el('bReabrir'); if(bReabrir) bReabrir.onclick=()=>confirmar('Reabrir a avaliação agora? Um novo ciclo de autoavaliação será criado para o colaborador.',async()=>{
+    try{ const r=await api('reabrirReavaliacao',{avaliacaoId:av.id}); toast('Reavaliação reaberta.','ok'); abrirAvaliacao((r.avaliacao&&r.avaliacao.id)||av.id);}catch(e){ toast(e.message,'err'); }
+  });
   const bs=el('bSalvarConsenso'); if(bs) bs.onclick=()=>salvarCons(false);
-  const bc=el('bConcluir'); if(bc) bc.onclick=()=>confirmar('Concluir a avaliação? A pontuação de consenso, a classificação e o feedback serão registrados no histórico.',()=>salvarCons(true));
+  const bc=el('bConcluir'); if(bc) bc.onclick=()=>{
+    const notas=coletarNotas('consenso');
+    const total=(promocao?promocao.length:0);
+    let temNao=false; for(let i=0;i<total;i++){ if(String(notas.promocao[i])==='nao'){ temNao=true; break; } }
+    const p=pontuarLocal(notas,criterios,metas);
+    // faixa 70–79 (e sem Não): precisa da data de reavaliação
+    if(!temNao && p!=='' && p>=70 && p<80){
+      return modal({title:'Reavaliar em 3 meses', body:`<div class="inline-note">${ICON.info}<span>O resultado (${p.toFixed(1)}) fica na faixa de reavaliação. Informe a data para reabrir a avaliação em cerca de 3 meses.</span></div>
+        <div class="field" style="margin-top:14px"><label>Data para reabrir</label><input type="date" id="reavDt" value="${somaMesesISO(3)}"/></div>`,
+        footer:`<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="bReav">Agendar reavaliação</button>`}),
+        el('bReav').onclick=()=>{ const dt=el('reavDt').value; if(!dt) return toast('Informe a data.','err'); closeModal(); salvarCons(true,dt); };
+    }
+    const msg = temNao ? 'Há "Não" em critério(s) de promoção: esta será registrada como avaliação de feedback (sem efeito de promoção). Concluir?'
+      : (p>=80 ? 'Resultado apto à promoção. Ao concluir, a avaliação ficará aguardando você registrar o desfecho (aprovado, reprovado, etc). Concluir o consenso?'
+      : 'Concluir a avaliação? A pontuação, a classificação e o feedback serão registrados no histórico.');
+    confirmar(msg,()=>salvarCons(true));
+  };
 }
 
 function atualizarLive(av,criterios,metas,editKey){
