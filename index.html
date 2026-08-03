@@ -616,14 +616,20 @@ async function logout(){
  * ================================================================ */
 function buildNav(){
   const u=S.user;
-  if(u.perfil==='admin') return [
-    {id:'dashboard', label:'Painel', icon:'dash'},
-    {id:'organograma', label:'Organograma', icon:'building'},
-    {id:'cargos', label:'Cargos', icon:'badge'},
-    {id:'usuarios', label:'Usuários', icon:'users'},
-    {id:'comunicados', label:'Comunicados', icon:'message'},
-    {id:'aniversariantes', label:'Aniversariantes', icon:'cake'}
-  ];
+  if(u.perfil==='admin'){
+    const cap=u.capacidades||{};
+    const nav=[
+      {id:'dashboard', label:'Painel', icon:'dash'},
+      {id:'organograma', label:'Organograma', icon:'building'},
+      {id:'cargos', label:'Cargos', icon:'badge'},
+      {id:'usuarios', label:'Usuários', icon:'users'}
+    ];
+    // se o admin também é responsável por uma área, ele avalia a equipe dessa área
+    if(cap.minhaEquipe) nav.push({id:'colaboradores', label:'Minha equipe', icon:'users'});
+    nav.push({id:'comunicados', label:'Comunicados', icon:'message'},{id:'aniversariantes', label:'Aniversariantes', icon:'cake'});
+    if(cap.minhaEquipe) nav.push({id:'avaliacoes', label:'Avaliações', icon:'chart'});
+    return nav;
+  }
   const cap=u.capacidades||{}; const nav=[{id:'dashboard', label:'Meu painel', icon:'dash'},{id:'organograma', label:'Organograma', icon:'building'}];
   if(cap.verUsuarios) nav.push({id:'usuarios', label:'Usuários', icon:'users'});
   nav.push({id:'comunicados', label:'Comunicados', icon:'message'},{id:'aniversariantes', label:'Aniversariantes', icon:'cake'});
@@ -1120,28 +1126,26 @@ async function excluirCargo(id,nome){ confirmar(`Remover o cargo "${nome}"?`, as
 
 /* ---------------- GERENTE · COLABORADORES ---------------- */
 VIEWS.colaboradores = async function(){
-  setHead('Minha equipe','Todas as pessoas nas áreas que você lidera e nas áreas abaixo', `<button class="btn btn-ghost" onclick="modalAtribuirDisponivel()">${ICON.users}<span>Adicionar disponível</span></button><button class="btn btn-primary" onclick="modalColaborador()">${ICON.plus}<span>Nova pessoa</span></button>`);
+  setHead('Minha equipe','As pessoas que respondem diretamente a você', `<button class="btn btn-ghost" onclick="modalAtribuirDisponivel()">${ICON.users}<span>Adicionar disponível</span></button><button class="btn btn-primary" onclick="modalColaborador()">${ICON.plus}<span>Nova pessoa</span></button>`);
   const [{colaboradores}, areas, {cargos}] = await Promise.all([ api('listarColaboradores'), api('listarAreas').then(r=>r.areas), api('listarCargos') ]);
   S.cache.areas=areas; S.cache.cargos=cargos;
   S.cache.areasLidero = ordNome(areas.filter(a=>String(a.responsavelId||'')===String(S.user.id)));
   const idsLidero = new Set(S.cache.areasLidero.map(a=>a.id));
   if(!colaboradores.length) return el('content').innerHTML = emptyState('Sua equipe está vazia','Adicione pessoas disponíveis ou crie novas nas áreas que você lidera.','Adicionar disponível','modalAtribuirDisponivel()');
-  const diretos = colaboradores.filter(c=>c.avalioDiretamente).length;
   el('content').innerHTML = `${barraBusca('buscaEquipe','Buscar pelo nome…')}
-  <div class="hint" style="margin:-4px 0 12px">Mostra todas as pessoas nas áreas que você lidera e nas áreas abaixo delas. O selo <span class="pill cyan" style="font-size:.66rem">avalio</span> indica quem responde diretamente a você — só essas você avalia, dá feedback ou remove; as demais são geridas pelo responsável da área delas.</div>
+  <div class="hint" style="margin:-4px 0 12px">São as pessoas que respondem diretamente a você: os membros da sua área e os responsáveis das áreas logo abaixo. Você avalia, dá feedback e edita essas pessoas.</div>
   <div class="card"><table class="tbl">
     <thead><tr><th>Colaborador</th><th>Área</th><th>Cargo</th><th></th></tr></thead>
     <tbody id="buscaEquipe_tb">${colaboradores.map(c=>`<tr>
-      <td><div style="display:flex;align-items:center;gap:11px;cursor:pointer" onclick="abrirColaborador('${c.id}')" title="Ver ficha completa">${avatarHtml(c,34)}<div><b>${esc(c.nome)}</b> ${c.avalioDiretamente?'<span class="pill cyan" style="font-size:.64rem">avalio</span>':''}<br><span class="page-sub mono">@${esc(c.login)}</span></div></div></td>
+      <td><div style="display:flex;align-items:center;gap:11px;cursor:pointer" onclick="abrirColaborador('${c.id}')" title="Ver ficha completa">${avatarHtml(c,34)}<div><b>${esc(c.nome)}</b><br><span class="page-sub mono">@${esc(c.login)}</span></div></div></td>
       <td>${c.areaNome?`<span class="pill cyan">${esc(c.areaNome)}</span>`:'<span class="pill gray">sem área</span>'}</td>
       <td>${c.cargoNome?`<span class="pill gold">${esc(c.cargoNome)}</span>`:'<span class="pill gray">sem cargo</span>'}</td>
       <td class="row-actions">
-        ${c.avalioDiretamente?`<button class="btn btn-ghost btn-sm" title="Editar cadastro, cargo e salário" onclick='modalEditarUsuario(${JSON.stringify(c).replace(/'/g,"&#39;")},{voltar:"colaboradores"})'>${ICON.edit}<span>Editar</span></button>
+        <button class="btn btn-ghost btn-sm" title="Editar cadastro, cargo e salário" onclick='modalEditarUsuario(${JSON.stringify(c).replace(/'/g,"&#39;")},{voltar:"colaboradores"})'>${ICON.edit}<span>Editar</span></button>
         <button class="btn btn-ghost btn-sm btn-icon" title="Feedbacks" onclick="abrirFeedbacks('${c.id}','${esc(c.nome)}')">${ICON.message}</button>
         <button class="btn btn-ghost btn-sm btn-icon" title="Nova avaliação" onclick="iniciarAvaliacao('${c.id}','${esc(c.nome)}')">${ICON.chart}</button>
         <button class="btn btn-ghost btn-sm btn-icon" title="Senha" onclick="modalResetSenha('${c.id}','${esc(c.nome)}')">${ICON.key}</button>
-        ${idsLidero.has(c.areaId)?`<button class="btn btn-ghost btn-sm" title="Tirar da área e deixar disponível" onclick="liberarPessoa('${c.id}','${esc(c.nome)}',()=>go('colaboradores'))">Remover da área</button>`:''}`
-        :`<button class="btn btn-ghost btn-sm" onclick="abrirColaborador('${c.id}')">Ver ficha</button>`}
+        ${idsLidero.has(c.areaId)?`<button class="btn btn-ghost btn-sm" title="Tirar da área e deixar disponível" onclick="liberarPessoa('${c.id}','${esc(c.nome)}',()=>go('colaboradores'))">Remover da área</button>`:''}
       </td></tr>`).join('')}</tbody></table>
     <div id="buscaEquipe_vazio" class="empty" style="display:none">${ICON.users}<p>Ninguém encontrado com esse termo.</p></div>
   </div>`;
@@ -1546,7 +1550,8 @@ async function verArea(id){
       linha('Área', `<b>${esc(a.nome)}</b> ${a.paiId?'':'<span class="pill gold">Empresa</span>'}`)
     + (a.descricao?linha('Descrição', esc(a.descricao)):'')
     + linha('Responsável', a.responsavelNome?esc(a.responsavelNome):'<span style="color:var(--red)">sem responsável</span>')
-    + ((r.avaliadorNome||a.avaliadorNome) && (r.avaliadorNome||a.avaliadorNome)!==(a.responsavelNome||'') ? linha('Quem avalia', esc(r.avaliadorNome||a.avaliadorNome)+' <span class="page-sub">(responsável acima)</span>') : '')
+    + ((r.avaliadorNome||a.avaliadorNome) && (r.avaliadorNome||a.avaliadorNome)!==(a.responsavelNome||'') ? linha('Responsável avaliado por', esc(r.avaliadorNome||a.avaliadorNome)+' <span class="page-sub">(responsável da área acima)</span>') : '')
+    + (a.responsavelNome ? linha('Quem avalia os membros', esc(a.responsavelNome)+' <span class="page-sub">(responsável desta área)</span>') : '')
     + linha('Responde a', pai?esc(pai.nome):'<span class="page-sub">nível mais alto da empresa</span>')
     + linha('Áreas abaixo', filhos.length?filhos.map(f=>`<span class="pill cyan" style="margin:0 5px 5px 0;display:inline-block">${esc(f.nome)}</span>`).join(''):'<span class="page-sub">nenhuma</span>')
     + linha('Pessoas ('+membros.length+')', listaPessoas)
@@ -1589,18 +1594,12 @@ async function modalNovaArea(paiId,paiNome){
       ${pickOne('naResp', candidatos)}
       <div class="hint">${raiz?'Será o topo do organograma.':'Passará a liderar esta área e responderá ao responsável de '+esc(paiNome)+'.'}</div>
     </div>
-    ${raiz?'':`<div class="field"><label>Quem avalia as pessoas desta área?</label>
-      <select name="avaliadoPor">
-        <option value="responsavel">O responsável designado da área</option>
-        <option value="superior">Eu mesmo (${esc(S.user.nome)}) — o responsável acima</option>
-      </select>
-      <div class="hint">Define quem faz a avaliação de desempenho dos membros desta área.</div>
-    </div>`}
+    ${raiz?'':`<div class="inline-note">${ICON.info}<span>O responsável desta área avalia quem a compõe. O responsável de ${esc(paiNome)} avalia o responsável desta área.</span></div>`}
   </form>`, footer:`<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="bNA">Criar</button>`});
   el('bNA').onclick=async()=>{ const f=el('fNA'); if(!f.reportValidity())return; const d=Object.fromEntries(new FormData(f));
     const resp=pickUm('naResp'); if(!resp){ toast('Escolha o responsável pela área.','err'); return; }
     const b=el('bNA');b.disabled=true;b.textContent='Criando…';
-    try{ await api('criarArea',{nome:d.nome,descricao:d.descricao,paiId:paiId,responsavelId:resp,avaliadoPor:d.avaliadoPor||'responsavel'}); toast('Área criada.','ok'); closeModal(); go('organograma'); }
+    try{ await api('criarArea',{nome:d.nome,descricao:d.descricao,paiId:paiId,responsavelId:resp}); toast('Área criada.','ok'); closeModal(); go('organograma'); }
     catch(e){ toast(e.message,'err'); b.disabled=false; b.textContent='Criar'; } };
 }
 async function modalEditarArea(a){
@@ -1670,7 +1669,7 @@ async function verMembros(areaId,areaNome){
   const areas=S.cache.areas||[]; const area=areas.find(a=>a.id===areaId)||{};
   const podeGerir = orgPodeGerir(area) || orgCanTransfer(area);
   const r=await api('membrosArea',{areaId}); const membros=r.membros||[];
-  const nota = (r.avaliadorNome && r.avaliadorNome!==r.responsavelNome) ? `<div class="hint" style="margin-bottom:12px">${ICON.info} Avaliação das pessoas desta área feita por <b>${esc(r.avaliadorNome)}</b>.</div>` : '';
+  const nota = r.responsavelNome ? `<div class="inline-note" style="margin-bottom:12px">${ICON.info}<span>As pessoas desta área são avaliadas por <b>${esc(r.responsavelNome)}</b> (responsável da área).</span></div>` : '';
   modal({wide:true,title:`Pessoas · ${areaNome}`, body: nota+(membros.length?`<table class="tbl"><tbody>${membros.map(c=>`<tr>
     <td><div style="display:flex;align-items:center;gap:10px">${avatarHtml(c,32)}<div><b>${esc(c.nome)}</b> ${c.ehResponsavel?'<span class="pill gold">Responsável</span>':''}<br><span class="page-sub mono">@${esc(c.login)}</span></div></div></td>
     <td>${c.cargoNome?`<span class="pill gold">${esc(c.cargoNome)}</span>`:'<span class="pill gray">sem cargo</span>'}</td>
