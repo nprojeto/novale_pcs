@@ -901,7 +901,7 @@ async function modalEditarUsuario(u, opts){
     </div>`:''}
     ${ehAdm?'<div class="hint">Este usuário é administrador. Ele pode ser atribuído a áreas como responsável pelo Organograma.</div>':`<div class="form-row">
       <div class="field"><label>Cargo</label><select name="cargoId"><option value="">— sem cargo —</option>${cargos.map(c=>`<option value="${c.id}" ${c.id===u.cargoId?'selected':''}>${esc(c.nome)}</option>`).join('')}</select></div>
-      <div class="field"><label>Salário (R$)</label><input name="salario" type="number" step="0.01" min="0" value="${u.salario||''}"/></div>
+      ${(!souAdmin && String(u.id)===String(S.user.id))?'':`<div class="field"><label>Salário (R$)</label><input name="salario" type="number" step="0.01" min="0" value="${u.salario||''}"/></div>`}
     </div>`}
     <fieldset style="margin-top:14px"><legend>Datas</legend>
       <div class="form-row">
@@ -1717,10 +1717,10 @@ async function editarMeuCargo(){
       <select name="cargoId"><option value="">— sem cargo —</option>${cargos.map(c=>`<option value="${c.id}" ${c.id===me.cargoId?'selected':''}>${esc(c.nome)}</option>`).join('')}</select>
       <div class="hint">Escolha entre os cargos cadastrados. Para criar um novo, use a aba <b>Cargos</b>.</div>
     </div>
-    <div class="field"><label>Meu salário (R$)</label><input name="salario" type="number" step="0.01" min="0" value="${me.salario||''}"/></div>
+    <div class="inline-note">${ICON.info}<span>Seu salário é definido pelo seu gestor ou pelo administrador.</span></div>
   </form>`, footer:`<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="bMC">Salvar</button>`});
   el('bMC').onclick=async()=>{ const d=Object.fromEntries(new FormData(el('fMC'))); const b=el('bMC');b.disabled=true;b.textContent='Salvando…';
-    try{ const payload={id:me.id,cargoId:d.cargoId}; if(d.salario!=='') payload.salario=d.salario;
+    try{ const payload={id:me.id,cargoId:d.cargoId};
       await api('atualizarUsuario',payload);
       const r=await api('me'); if(r&&r.usuario) S.user=r.usuario;
       toast('Cargo atualizado.','ok'); closeModal(); go('meu-cargo');
