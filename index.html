@@ -2062,18 +2062,21 @@ function ligarEditor(av,criterios,metas,promocao,editKey){
 function atualizarGate(key,criterios,metas,promocao){
   const notas=coletarNotas(key);
   const total=(promocao?promocao.length:0);
-  // todos os critérios de promoção respondidos com "sim"?
+  // O bloqueio por "Não" vale SOMENTE para a autoavaliação (o avaliado).
+  // O avaliador (gestor) e o consenso podem marcar "Não" e seguir normalmente.
+  const aplicaTrava = (key==='auto');
   let todosSim=true; for(let i=0;i<total;i++){ if(String(notas.promocao[i])!=='sim'){ todosSim=false; break; } }
-  const liberado = total===0 || todosSim;
+  const liberado = !aplicaTrava || total===0 || todosSim;
   const wrap=el('desemp_'+key), note=el('gateNote_'+key);
   if(wrap) wrap.classList.toggle('locked', !liberado);
-  if(note) note.style.display = (total>0 && !liberado) ? '' : 'none';
+  if(note) note.style.display = (aplicaTrava && total>0 && !liberado) ? '' : 'none';
   // notas de desempenho completas?
   const critOk = criterios.every(c=>notas.criterios[c.chave]!=null && notas.criterios[c.chave]!=='');
   const metasOk = metas.every((m,i)=>notas.metas[i]!=null && notas.metas[i]!=='');
   const tudoCompleto = liberado && critOk && metasOk;
-  // botões que dependem do gate (envio da autoavaliação e do gestor)
-  ['bAuto','bGestor'].forEach(id=>{ const b=el(id); if(b){ b.disabled=!tudoCompleto; b.title = !liberado?'Marque "Sim" em todos os critérios de promoção':(!tudoCompleto?'Preencha todas as notas de desempenho':''); } });
+  // autoavaliação: exige Sim em tudo + notas. Gestor: só as notas completas.
+  const bAuto=el('bAuto'); if(bAuto){ bAuto.disabled=!tudoCompleto; bAuto.title = !liberado?'Marque "Sim" em todos os critérios de promoção':(!tudoCompleto?'Preencha todas as notas de desempenho':''); }
+  const bGestor=el('bGestor'); if(bGestor){ bGestor.disabled=!(critOk&&metasOk); bGestor.title = !(critOk&&metasOk)?'Preencha todas as notas de desempenho':''; }
   return {liberado,tudoCompleto};
 }
 function atualizarLive(av,criterios,metas,editKey){
@@ -2082,7 +2085,12 @@ function atualizarLive(av,criterios,metas,editKey){
   if(editKey){
     const live=coletarNotas(editKey); const info=SERIE_INFO[editKey];
     s.push({name:info.name,color:info.color,values:serieValores(live,criterios,metas)});
-    const box=el('scoreLiveBox'); if(box) box.innerHTML=scoreCard(pontuarLocal(live,criterios,metas),'Pontuação parcial');
+    // No consenso, se algum critério de promoção estiver "Não", a avaliação vira só
+    // de feedback: a barra trava zerada e nem calcula pontos.
+    const prom=av.promocaoPerguntas||[]; let feedbackConsenso=false;
+    if(editKey==='consenso'){ for(let i=0;i<prom.length;i++){ if(String(live.promocao[i])==='nao'){ feedbackConsenso=true; break; } } }
+    const box=el('scoreLiveBox');
+    if(box) box.innerHTML=scoreCard(feedbackConsenso?null:pontuarLocal(live,criterios,metas), feedbackConsenso?'Sem pontuação':'Pontuação parcial', feedbackConsenso);
   }
   if(editKey!=='auto') push(av.auto,'Autoavaliação','#48C6F7');
   if(!isColab && editKey!=='gestor') push(av.gestor,'Gestor','#E8B54A');
