@@ -271,6 +271,11 @@ fieldset legend{font-size:.76rem;font-weight:700;color:var(--cyan-bright);paddin
 .progress > span{display:block;height:100%;background:linear-gradient(90deg,var(--cyan-deep),var(--cyan-bright));border-radius:20px}
 .section-gap{margin-top:26px}
 .inline-note{background:var(--gold-soft);border:1px solid rgba(232,181,74,.25);border-radius:11px;padding:12px 15px;font-size:.84rem;color:#F1D89A;display:flex;gap:10px;align-items:flex-start}
+.inline-note svg{width:18px;height:18px;flex:none}
+.gate-note{margin:10px 0 4px}
+.gate-wrap{transition:opacity .2s}
+.gate-wrap.locked{opacity:.4;pointer-events:none;filter:grayscale(.4)}
+.btn[disabled]{opacity:.5;cursor:not-allowed;filter:grayscale(.3)}
 .inline-note svg{width:18px;height:18px;flex:none;color:var(--gold);margin-top:1px}
 .steps{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
 .step{flex:1;min-width:140px;padding:12px 14px;border-radius:11px;background:var(--surface);border:1px solid var(--border-soft);font-size:.82rem}
@@ -1863,13 +1868,17 @@ function blocoAvaliacao(key,criterios,metas,promocao,valores,titulo,footerHtml){
   const promoRows=promocao.length?(`<div class="block-title">Critérios para promoção — o colaborador atende?</div>`+
     `<div class="scale-hint" style="margin-top:-2px"><span>Para concorrer à promoção, todos precisam ser "Sim".</span></div>`+
     promocao.map((q,i)=>rowSimNao(i,`<span class="meta-goal">${esc(q)}</span>`,vp[i])).join('')):'';
+  const temPromo = promocao.length>0;
   return `<div class="card-h"><h3>${esc(titulo)}</h3></div>
     <div id="scale_${key}">
       ${promoRows}
-      <div class="block-title">Critérios de desempenho</div>
-      <div class="scale-hint"><span>0 = rendimento ruim</span><span>5 = excelente</span></div>
-      ${critRows}
-      ${metaRows}
+      <div id="gateNote_${key}" class="inline-note gate-note" style="${temPromo?'':'display:none'}">${ICON.info}<span>Responda "Sim" a todos os critérios de promoção acima para liberar as notas de desempenho.</span></div>
+      <div id="desemp_${key}" class="gate-wrap">
+        <div class="block-title">Critérios de desempenho</div>
+        <div class="scale-hint"><span>0 = rendimento ruim</span><span>5 = excelente</span></div>
+        ${critRows}
+        ${metaRows}
+      </div>
     </div>
     <div style="margin-top:18px;display:flex;flex-direction:column;gap:14px">${footerHtml||''}</div>`;
 }
@@ -1998,8 +2007,9 @@ function montarSeries(av,isColab){
 
 function ligarEditor(av,criterios,metas,promocao,editKey){
   document.querySelectorAll('.scale button, .yn button').forEach(b=>{
-    b.onclick=()=>{ b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); atualizarLive(av,criterios,metas,editKey); };
+    b.onclick=()=>{ b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); atualizarLive(av,criterios,metas,editKey); atualizarGate(editKey,criterios,metas,promocao); };
   });
+  if(editKey) atualizarGate(editKey,criterios,metas,promocao);
   const bAuto=el('bAuto'); if(bAuto) bAuto.onclick=async()=>{
     const notas=coletarNotas('auto'); if(!completo(notas,criterios,metas,promocao)) return toast('Responda todos os critérios, metas e perguntas de promoção.','err');
     // trava: todos os critérios de promoção precisam ser "Sim" para enviar
@@ -2049,6 +2059,23 @@ function ligarEditor(av,criterios,metas,promocao,editKey){
   };
 }
 
+function atualizarGate(key,criterios,metas,promocao){
+  const notas=coletarNotas(key);
+  const total=(promocao?promocao.length:0);
+  // todos os critérios de promoção respondidos com "sim"?
+  let todosSim=true; for(let i=0;i<total;i++){ if(String(notas.promocao[i])!=='sim'){ todosSim=false; break; } }
+  const liberado = total===0 || todosSim;
+  const wrap=el('desemp_'+key), note=el('gateNote_'+key);
+  if(wrap) wrap.classList.toggle('locked', !liberado);
+  if(note) note.style.display = (total>0 && !liberado) ? '' : 'none';
+  // notas de desempenho completas?
+  const critOk = criterios.every(c=>notas.criterios[c.chave]!=null && notas.criterios[c.chave]!=='');
+  const metasOk = metas.every((m,i)=>notas.metas[i]!=null && notas.metas[i]!=='');
+  const tudoCompleto = liberado && critOk && metasOk;
+  // botões que dependem do gate (envio da autoavaliação e do gestor)
+  ['bAuto','bGestor'].forEach(id=>{ const b=el(id); if(b){ b.disabled=!tudoCompleto; b.title = !liberado?'Marque "Sim" em todos os critérios de promoção':(!tudoCompleto?'Preencha todas as notas de desempenho':''); } });
+  return {liberado,tudoCompleto};
+}
 function atualizarLive(av,criterios,metas,editKey){
   const axes=axesFor(av); const isColab=String(av.colaboradorId)===String(S.user.id); const s=[];
   const push=(o,name,color)=>{ if(temNotas(o)) s.push({name,color,values:serieValores(o,criterios,metas)}); };
