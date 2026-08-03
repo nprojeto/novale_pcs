@@ -1429,7 +1429,11 @@ function renderOrg(){
 function toggleOrg(id){ const s=S.cache.orgCollapsed||(S.cache.orgCollapsed=new Set()); if(s.has(id)) s.delete(id); else s.add(id); renderOrg(); }
 function expandAllOrg(){ S.cache.orgCollapsed=new Set(); renderOrg(); }
 function collapseAllOrg(){ const areas=S.cache.areas||[]; S.cache.orgCollapsed=new Set(areas.filter(a=>areas.some(x=>x.paiId===a.id)).map(a=>a.id)); renderOrg(); }
-function orgPodeGerir(a){ return S.user.perfil==='admin' || String(a.responsavelId)===String(S.user.id); }
+function orgPodeGerir(a){
+  if(S.user.perfil==='admin') return true;
+  if(String(a.responsavelId)===String(S.user.id)) return true;
+  return orgCanTransfer(a); // responsável de alguma área acima na árvore
+}
 function orgPodeAddPessoa(a){ return orgPodeGerir(a) || orgCanTransfer(a); }
 function orgNode(a, areas){
   const filhos = ordNome(areas.filter(x=>x.paiId===a.id));
