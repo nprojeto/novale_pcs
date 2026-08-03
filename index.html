@@ -679,7 +679,16 @@ function sideFootHtml(){
   </div>`;
 }
 async function atualizarNotificacoes(){
-  try{ const r=await api('notificacoes'); S.notif=r.notificacoes||{}; pintarBadges(); }catch(e){}
+  try{
+    const r=await api('notificacoes'); S.notif=r.notificacoes||{}; pintarBadges();
+    // "Popup" de novo comunicado: avisa uma vez quando aparecem comunicados novos
+    // (não repete a cada atualização, e não avisa se você já está na aba).
+    const novos = S.notif.comunicados||0;
+    if(novos>0 && S.view!=='comunicados' && S._comNotif!==novos){
+      toast(novos===1?'Novo comunicado publicado.':`${novos} novos comunicados publicados.`, 'ok');
+    }
+    S._comNotif = novos;
+  }catch(e){}
 }
 function pintarBadges(){
   document.querySelectorAll('.nav-item').forEach(n=>{
@@ -732,6 +741,7 @@ async function go(view){
     if(fn) await fn();
     else el('content').innerHTML = '<div class="empty">Tela não encontrada.</div>';
     if(view==='meus-feedbacks'){ try{ await api('marcarVisto',{canal:'feedbacks'}); }catch(e){} }
+    if(view==='comunicados'){ try{ await api('marcarVisto',{canal:'comunicados'}); }catch(e){} }
     refreshMe();
     atualizarNotificacoes();
   }catch(e){
@@ -772,6 +782,7 @@ const VIEWS = {};
 /* ---------------- DASHBOARD ---------------- */
 VIEWS.dashboard = async function(){
   const r = await api('resumo');
+  if(!S.notif){ try{ const n=await api('notificacoes'); S.notif=n.notificacoes||{}; }catch(e){} }
   if(r.perfil==='admin'){
     setHead('Painel do administrador','Visão geral da estrutura organizacional');
     el('content').innerHTML = `<div class="grid cols-4">
@@ -813,6 +824,10 @@ VIEWS.dashboard = async function(){
       ${stat(r.totalMinhas||0,'Meus ciclos','clip','cyan')}
     </div>
     ${(r.avaliacoesPendentes||0)>0?`<div class="section-gap inline-note">${ICON.alert}<span>Você tem autoavaliações aguardando seu preenchimento. Acesse <b>Minhas avaliações</b>.</span></div>`:''}`;
+  }
+  const novosCom = (S.notif && S.notif.comunicados) || 0;
+  if(novosCom>0){
+    html = `<div class="inline-note" style="cursor:pointer;background:rgba(44,166,224,.1);border-color:rgba(44,166,224,.32);color:#9AD8F2;margin-bottom:16px" onclick="go('comunicados')">${ICON.message}<span>${novosCom===1?'Há um novo comunicado.':'Há '+novosCom+' novos comunicados.'} Toque para ver.</span></div>` + html;
   }
   el('content').innerHTML = html || `<div class="empty">${ICON.dash}<p>Sem informações para exibir ainda.</p></div>`;
 };
