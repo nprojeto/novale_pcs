@@ -1303,20 +1303,21 @@ function renderFbList(fbs){
 /* ---------------- COMUNICADOS ---------------- */
 VIEWS.comunicados = async function(){
   const adm = S.user.perfil==='admin';
-  setHead('Comunicados','Avisos para toda a empresa. Cada um some sozinho na data definida.',
-    adm?`<button class="btn btn-primary" onclick="modalComunicado()">${ICON.plus}<span>Novo comunicado</span></button>`:'');
-  const {comunicados} = await api('listarComunicados', adm?{incluirExpirados:true}:{});
+  const podeCriar = adm || (S.user.capacidades && S.user.capacidades.comunicar) || S.user.nivel==='gerente';
+  setHead('Comunicados','Avisos para a empresa. Cada um some sozinho na data definida.',
+    podeCriar?`<button class="btn btn-primary" onclick="modalComunicado()">${ICON.plus}<span>Novo comunicado</span></button>`:'');
+  const {comunicados} = await api('listarComunicados', podeCriar?{incluirExpirados:true}:{});
   const vigentes = comunicados.filter(c=>!c.expirado);
   const expirados = comunicados.filter(c=>c.expirado);
-  if(!comunicados.length) return el('content').innerHTML = adm
-    ? emptyState('Nenhum comunicado','Publique um aviso para toda a empresa. Você define por quantos dias ele fica no ar.','Novo comunicado','modalComunicado()')
+  if(!comunicados.length) return el('content').innerHTML = podeCriar
+    ? emptyState('Nenhum comunicado','Publique um aviso para a empresa. Você define por quantos dias ele fica no ar.','Novo comunicado','modalComunicado()')
     : `<div class="empty">${ICON.message}<p>Nenhum comunicado no momento.</p></div>`;
   const card = c => `<div class="card ${c.expirado?'':'section-gap'}" style="${c.expirado?'opacity:.55':''}">
     <div class="card-h"><h3>${esc(c.titulo)}</h3>
       <div class="row-actions">
         ${c.paraTodos?'<span class="pill cyan">toda a empresa</span>':`<span class="pill gold" title="${esc((c.areasNomes||[]).join(', '))}">${(c.areasNomes||[]).length} área(s)</span>`}
         ${c.expirado?'<span class="pill gray">expirado</span>':`<span class="pill green"><span class="dot"></span>até ${fmtDay(c.expiraEm)}</span>`}
-        ${adm?`<button class="btn btn-danger btn-sm btn-icon" title="Excluir" onclick="excluirComunicado('${c.id}','${esc(c.titulo)}')">${ICON.trash}</button>`:''}
+        ${(adm || String(c.autorId)===String(S.user.id))?`<button class="btn btn-danger btn-sm btn-icon" title="Excluir" onclick="excluirComunicado('${c.id}','${esc(c.titulo)}')">${ICON.trash}</button>`:''}
       </div>
     </div>
     <div style="white-space:pre-wrap;line-height:1.6">${esc(c.texto)}</div>
