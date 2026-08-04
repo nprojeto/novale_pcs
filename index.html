@@ -64,6 +64,9 @@ input,textarea,select{font-family:inherit}
 .field textarea{resize:vertical;min-height:88px;line-height:1.55}
 .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--cyan);box-shadow:var(--ring)}
 .field .hint{font-size:.72rem;color:var(--muted2);margin-top:6px}
+.salary-input{position:relative;display:flex;align-items:center}
+.salary-input .salary-prefix{position:absolute;left:13px;color:var(--muted2);font-weight:700;font-size:.9rem;pointer-events:none}
+.salary-input input{padding-left:38px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .hint svg{width:14px;height:14px;flex:none;vertical-align:-2px;display:inline-block}
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:var(--radius-sm);
@@ -444,6 +447,18 @@ const el = id => document.getElementById(id);
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function initials(n){ return String(n||'?').trim().split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase(); }
 function money(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+// Formata um número em moeda pt-BR sem o "R$" (para dentro do input): 1234.5 -> "1.234,50"
+function fmtMoedaInput(v){ const n=Number(v||0); if(!n) return ''; return n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+// Converte o texto digitado (com pontos/vírgula) de volta para número: "1.234,56" -> 1234.56
+function parseMoeda(txt){ if(txt==null) return 0; const s=String(txt).replace(/[^0-9]/g,''); if(!s) return 0; return Number(s)/100; }
+// Aplica a máscara enquanto digita: mantém só dígitos e formata como centavos.
+function mascaraMoeda(input){ const n=parseMoeda(input.value); input.value = n?fmtMoedaInput(n):''; }
+// HTML de um campo de salário com máscara (prefixo R$). id é usado para ler no submit.
+function campoSalario(id, valor, label){
+  return `<div class="field"><label>${label||'Salário (R$)'}</label>
+    <div class="salary-input"><span class="salary-prefix">R$</span>
+      <input id="${id}" inputmode="numeric" autocomplete="off" placeholder="0,00" value="${fmtMoedaInput(valor)}" oninput="mascaraMoeda(this)"/></div></div>`;
+}
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
 function fmtDay(iso){ if(!iso) return '—'; const d=new Date(iso); return isNaN(d)?esc(iso):d.toLocaleDateString('pt-BR'); }
 
@@ -943,7 +958,7 @@ async function modalEditarUsuario(u, opts){
     </div>`:''}
     ${ehAdm?'<div class="hint">Este usuário é administrador. Ele pode ser atribuído a áreas como responsável pelo Organograma.</div>':`<div class="form-row">
       <div class="field"><label>Cargo</label><select name="cargoId"><option value="">— sem cargo —</option>${cargos.map(c=>`<option value="${c.id}" ${c.id===u.cargoId?'selected':''}>${esc(c.nome)}</option>`).join('')}</select></div>
-      ${(!souAdmin && String(u.id)===String(S.user.id))?'':`<div class="field"><label>Salário (R$)</label><input name="salario" type="number" step="0.01" min="0" value="${u.salario||''}"/></div>`}
+      ${(!souAdmin && String(u.id)===String(S.user.id))?'':campoSalario('euSalario', u.salario, 'Salário (R$)')}
     </div>`}
     <fieldset style="margin-top:14px"><legend>Datas</legend>
       <div class="form-row">
@@ -959,7 +974,7 @@ async function modalEditarUsuario(u, opts){
       const payload={id:u.id,nome:d.nome,email:d.email,telefone:d.telefone,login:d.login,ativo:d.ativo,
         dataNascimento:d.dataNascimento,dataAdmissao:d.dataAdmissao,dataDemissao:d.dataDemissao};
       if(souAdmin) payload.perfil=d.perfil;
-      if(!ehAdm){ payload.cargoId=d.cargoId||''; if(d.salario!=='') payload.salario=d.salario; }
+      if(!ehAdm){ payload.cargoId=d.cargoId||''; const sal=el('euSalario'); if(sal) payload.salario=parseMoeda(sal.value); }
       await api('atualizarUsuario',payload);
       toast('Cadastro atualizado.','ok'); closeModal(); go(opts.voltar||'usuarios');
     }catch(e){ toast(e.message,'err'); b.disabled=false; b.textContent='Salvar'; }
@@ -1062,7 +1077,7 @@ async function modalNovoUsuarioAdmin(){
       <div class="field"><label>Data de nascimento</label><input name="dataNascimento" type="date"/><div class="hint">Usada na tela de aniversariantes.</div></div>
       <div class="field"><label>Data de admissão</label><input name="dataAdmissao" type="date"/></div>
     </div>
-    <div class="field"><label>Salário (opcional, R$)</label><input name="salario" type="number" step="0.01" min="0"/><div class="hint">Visível apenas para o superior imediato.</div></div>
+    '<div class="field-note">'+campoSalario('novoSalario', 0, 'Salário (opcional, R$)')+'<div class="hint">Visível apenas para o superior imediato.</div></div>'
     <div class="field"><label>Nível de acesso</label>
       <select name="perfil">
         <option value="colaborador" selected>Colaborador — acesso básico</option>
@@ -1072,7 +1087,7 @@ async function modalNovoUsuarioAdmin(){
     </div>
     <div class="hint">Deixe sem área para criar o usuário no "pool" e depois atribuí-lo como responsável de uma área no Organograma.</div>
   </form>`, footer:`<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="bNU">Criar usuário</button>`});
-  el('bNU').onclick=async()=>{ const f=el('fNU'); if(!f.reportValidity())return; const d=Object.fromEntries(new FormData(f)); const b=el('bNU');b.disabled=true;
+  el('bNU').onclick=async()=>{ const f=el('fNU'); if(!f.reportValidity())return; const d=Object.fromEntries(new FormData(f)); const sal=el('novoSalario'); if(sal) d.salario=parseMoeda(sal.value); const b=el('bNU');b.disabled=true;
     try{ await api('criarUsuario',d); toast('Usuário criado.','ok'); closeModal(); go('usuarios'); }catch(e){ toast(e.message,'err'); b.disabled=false; } };
 }
 
@@ -1272,9 +1287,9 @@ function modalColaborador(){
       <div class="field"><label>Data de nascimento</label><input name="dataNascimento" type="date"/></div>
       <div class="field"><label>Data de admissão</label><input name="dataAdmissao" type="date"/></div>
     </div>
-    <div class="form-row"><div class="field"><label>Senha de acesso</label>${pwd('senha')}</div><div class="field"><label>Salário (R$)</label><input name="salario" type="number" step="0.01" min="0"/><div class="hint">Só o superior imediato vê e define.</div></div></div>
+    <div class="form-row"><div class="field"><label>Senha de acesso</label>${pwd('senha')}</div>${campoSalario('colSalario', 0, 'Salário (R$)')}<div class="hint">Só o superior imediato vê e define.</div></div>
   </form>`, footer:`<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="bCo">Cadastrar</button>`});
-  el('bCo').onclick=async()=>{ const f=el('fCo'); if(!f.reportValidity())return; const d=Object.fromEntries(new FormData(f)); const b=el('bCo');b.disabled=true;b.textContent='Cadastrando…';
+  el('bCo').onclick=async()=>{ const f=el('fCo'); if(!f.reportValidity())return; const d=Object.fromEntries(new FormData(f)); const sal=el('colSalario'); if(sal) d.salario=parseMoeda(sal.value); const b=el('bCo');b.disabled=true;b.textContent='Cadastrando…';
     try{ await api('criarUsuario',d); toast('Pessoa cadastrada.','ok'); closeModal(); go('colaboradores'); }catch(e){ toast(e.message,'err'); b.disabled=false; b.textContent='Cadastrar'; } };
 }
 function modalAtribuir(c){
@@ -1282,10 +1297,10 @@ function modalAtribuir(c){
   modal({title:`Atribuir · ${c.nome}`, body:`<form id="fAt">
     <div class="field"><label>Área</label><select name="areaId"><option value="">— sem área —</option>${areas.map(a=>`<option value="${a.id}" ${a.id===c.areaId?'selected':''}>${esc(a.nome)}</option>`).join('')}</select></div>
     <div class="field"><label>Cargo</label><select name="cargoId"><option value="">— sem cargo —</option>${cargos.map(x=>`<option value="${x.id}" ${x.id===c.cargoId?'selected':''}>${esc(x.nome)}</option>`).join('')}</select></div>
-    <div class="field"><label>Salário (R$)</label><input name="salario" type="number" step="0.01" min="0" value="${c.salario||''}"/><div class="hint">Só o superior imediato vê e define.</div></div>
+    ${campoSalario('colEdSalario', c.salario, 'Salário (R$)')}<div class="hint">Só o superior imediato vê e define.</div>
   </form>`, footer:`<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="bAt">Salvar</button>`});
   el('bAt').onclick=async()=>{ const d=Object.fromEntries(new FormData(el('fAt'))); const b=el('bAt');b.disabled=true;
-    try{ await api('atribuirArea',{colaboradorId:c.id,areaId:d.areaId}); await api('atribuirCargo',{colaboradorId:c.id,cargoId:d.cargoId,salario:d.salario}); toast('Atribuições salvas.','ok'); closeModal(); go('colaboradores'); }
+    try{ await api('atribuirArea',{colaboradorId:c.id,areaId:d.areaId}); await api('atribuirCargo',{colaboradorId:c.id,cargoId:d.cargoId,salario:parseMoeda((el('colEdSalario')||{}).value)}); toast('Atribuições salvas.','ok'); closeModal(); go('colaboradores'); }
     catch(e){ toast(e.message,'err'); b.disabled=false; } };
 }
 async function iniciarAvaliacao(colabId,nome){
@@ -1682,7 +1697,7 @@ async function modalAddPessoa(areaId,areaNome){
       <div class="form-row"><div class="field"><label>E-mail</label><input name="email" type="email"/></div><div class="field"><label>Telefone</label><input name="telefone"/></div></div>
       <div class="form-row"><div class="field"><label>Login</label><input name="login"/></div><div class="field"><label>Senha</label>${pwd('senha')}</div></div>
       <div class="form-row"><div class="field"><label>Data de nascimento</label><input name="dataNascimento" type="date"/></div><div class="field"><label>Data de admissão</label><input name="dataAdmissao" type="date"/></div></div>
-      <div class="form-row"><div class="field"><label>Cargo</label><select name="cargoId"><option value="">— sem cargo —</option>${cargos.map(c=>`<option value="${c.id}">${esc(c.nome)}</option>`).join('')}</select></div><div class="field"><label>Salário (R$)</label><input name="salario" type="number" step="0.01" min="0"/></div></div>
+      <div class="form-row"><div class="field"><label>Cargo</label><select name="cargoId"><option value="">— sem cargo —</option>${cargos.map(c=>`<option value="${c.id}">${esc(c.nome)}</option>`).join('')}</select></div>${campoSalario('atrSalario', 0, 'Salário (R$)')}</div>
     </div>
   </form>`, footer:`<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="bAP">Adicionar</button>`});
   el('bAP').onclick=async()=>{ const d=Object.fromEntries(new FormData(el('fAP'))); const b=el('bAP');
@@ -1692,7 +1707,7 @@ async function modalAddPessoa(areaId,areaNome){
     try{
       if(ids.length) await api('atribuirMembro',{colaboradorIds:ids,areaId:areaId});
       if(novo){ if(!d.nome||!d.login||!d.senha) throw new Error('Para cadastrar uma pessoa nova, preencha nome, login e senha.');
-        await api('criarUsuario',{areaId:areaId,nome:d.nome,email:d.email,telefone:d.telefone,login:d.login,senha:d.senha,cargoId:d.cargoId,salario:d.salario,dataNascimento:d.dataNascimento,dataAdmissao:d.dataAdmissao}); }
+        await api('criarUsuario',{areaId:areaId,nome:d.nome,email:d.email,telefone:d.telefone,login:d.login,senha:d.senha,cargoId:d.cargoId,salario:parseMoeda((el('atrSalario')||{}).value),dataNascimento:d.dataNascimento,dataAdmissao:d.dataAdmissao}); }
       const n=ids.length+(novo?1:0);
       toast(n>1?(n+' pessoas adicionadas à área.'):'Pessoa adicionada à área.','ok'); closeModal(); go('organograma');
     }catch(e){ toast(e.message,'err'); b.disabled=false; b.textContent='Adicionar'; } };
