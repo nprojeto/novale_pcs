@@ -1602,8 +1602,6 @@ async function verArea(id){
       linha('Área', `<b>${esc(a.nome)}</b> ${a.paiId?'':'<span class="pill gold">Empresa</span>'}`)
     + (a.descricao?linha('Descrição', esc(a.descricao)):'')
     + linha('Responsável', a.responsavelNome?esc(a.responsavelNome):'<span style="color:var(--red)">sem responsável</span>')
-    + ((r.avaliadorNome||a.avaliadorNome) && (r.avaliadorNome||a.avaliadorNome)!==(a.responsavelNome||'') ? linha('Responsável avaliado por', esc(r.avaliadorNome||a.avaliadorNome)+' <span class="page-sub">(responsável da área acima)</span>') : '')
-    + (a.responsavelNome ? linha('Quem avalia os membros', esc(a.responsavelNome)+' <span class="page-sub">(responsável desta área)</span>') : '')
     + linha('Responde a', pai?esc(pai.nome):'<span class="page-sub">nível mais alto da empresa</span>')
     + linha('Áreas abaixo', filhos.length?filhos.map(f=>`<span class="pill cyan" style="margin:0 5px 5px 0;display:inline-block">${esc(f.nome)}</span>`).join(''):'<span class="page-sub">nenhuma</span>')
     + linha('Pessoas ('+membros.length+')', listaPessoas)
