@@ -658,7 +658,6 @@ function buildNav(){
       {id:'dashboard', label:'Painel', icon:'dash'},
       {id:'organograma', label:'Organograma', icon:'building'},
       {id:'carreiras', label:'Carreiras', icon:'route'},
-      {id:'cargos', label:'Cargos', icon:'badge'},
       {id:'usuarios', label:'Usuários', icon:'users'}
     ];
     // se o admin também é responsável por uma área, ele avalia a equipe dessa área
@@ -672,7 +671,6 @@ function buildNav(){
   nav.push({id:'comunicados', label:'Comunicados', icon:'message'},{id:'aniversariantes', label:'Aniversariantes', icon:'cake'});
   if(cap.gerencia) nav.push({id:'colaboradores', label:'Minha equipe', icon:'users'});
   if(cap.gestao) nav.push({id:'carreiras', label:'Carreiras', icon:'route'});
-  if(cap.gestao) nav.push({id:'cargos', label:'Cargos', icon:'badge'});
   if(cap.gerencia) nav.push({id:'avaliacoes', label:'Avaliações', icon:'chart'});
   // Estas três são sempre exibidas para qualquer pessoa (não-admin): mesmo quem
   // ainda não está em uma área precisa ver o próprio cargo, feedbacks e avaliações.
@@ -1291,7 +1289,7 @@ async function modalCargo(c, ctx){
         if(S.carreiraAberta) go('carreiras'); else go('cargos'); }
     catch(e){ toast(e.message,'err'); b.disabled=false; b.textContent=editing?'Salvar cargo':'Criar cargo'; } };
 }
-async function excluirCargo(id,nome){ confirmar(`Remover o cargo "${nome}"?`, async()=>{ try{ await api('excluirCargo',{id}); toast('Cargo removido.','ok'); go('cargos'); }catch(e){ toast(e.message,'err'); } }); }
+async function excluirCargo(id,nome){ confirmar(`Remover o cargo "${nome}"?`, async()=>{ try{ await api('excluirCargo',{id}); toast('Cargo removido.','ok'); go(S.carreiraAberta?'carreiras':'cargos'); }catch(e){ toast(e.message,'err'); } }); }
 
 /* ---------------- GERENTE · COLABORADORES ---------------- */
 VIEWS.colaboradores = async function(){
