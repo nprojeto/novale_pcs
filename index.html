@@ -145,6 +145,8 @@ input,textarea,select{font-family:inherit}
 .cols-2{grid-template-columns:repeat(2,1fr)}
 .cols-3{grid-template-columns:repeat(3,1fr)}
 .cols-4{grid-template-columns:repeat(4,1fr)}
+.card-click{cursor:pointer;transition:border-color .15s,transform .1s}
+.card-click:hover{border-color:var(--cyan);transform:translateY(-1px)}
 .card{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--border-soft);
   border-radius:var(--radius);padding:22px;box-shadow:0 8px 30px -20px rgba(0,0,0,.6)}
 .card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px}
@@ -472,6 +474,7 @@ function toast(msg,type=''){
 
 /* ---------- ícones ---------- */
 const ICON = {
+  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>',
   route:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h6a3 3 0 0 0 3-3V8"/><path d="M6 16V9a3 3 0 0 1 3-3h6"/></svg>',
   camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg>',
   dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
@@ -723,7 +726,7 @@ function renderApp(){
       <img class="side-logo" src="${LOGO}"/>
       <div class="nav-label">Menu</div>
       <div id="navItems">${nav.map(n=>`
-        <div class="nav-item" data-view="${n.id}" onclick="go('${n.id}')">${ICON[n.icon]}<span>${n.label}</span></div>`).join('')}</div>
+        <div class="nav-item" data-view="${n.id}" onclick="S._navClick=true;go('${n.id}')">${ICON[n.icon]}<span>${n.label}</span></div>`).join('')}</div>
       <div class="side-foot" id="sideFoot">${sideFootHtml()}</div>
     </aside>
     <main class="main">
@@ -753,6 +756,9 @@ async function refreshMe(){
 async function go(view){
   S.view=view; toggleSidebar(false);
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===view));
+  // clicar em "Carreiras" no menu sempre volta para a lista (não fica preso no detalhe)
+  if(view==='carreiras' && S._navClick){ S.carreiraAberta=null; }
+  S._navClick=false;
   loading();
   try{
     const fn = VIEWS[view];
@@ -1116,34 +1122,75 @@ function modalArea(){
 async function excluirArea(id,nome){ confirmar(`Remover a área "${nome}"?`, async()=>{ try{ await api('excluirArea',{id}); toast('Área removida.','ok'); go('areas'); }catch(e){ toast(e.message,'err'); } }); }
 
 /* ---------------- CARREIRAS ---------------- */
+const NIVEIS_CARGO_LIST = ['Administrativo Jr','Administrativo Pl','Administrativo Sr','Monitor','Liderança'];
+
 VIEWS.carreiras = async function(){
+  // Dois modos: lista de carreiras, ou detalhe de uma carreira (S.carreiraAberta).
+  if(S.carreiraAberta){ return viewDetalheCarreira(S.carreiraAberta); }
   const podeCriar = S.user.perfil==='admin' || S.user.nivel==='gerente';
-  setHead('Carreiras','Trilhas de carreira. Cada carreira tem 5 níveis de cargo: Administrativo Jr, Pl, Sr, Monitor e Liderança.',
+  setHead('Carreiras','Suas trilhas de carreira. Clique numa carreira para ver e atribuir os 5 cargos dela.',
     podeCriar?`<button class="btn btn-primary" onclick="modalCarreira()">${ICON.plus}<span>Nova carreira</span></button>`:'');
   let carreiras=[];
   try{ carreiras=(await api('listarCarreiras')).carreiras; }catch(e){ return el('content').innerHTML=`<div class="empty">${ICON.route}<p>${esc(e.message)}</p></div>`; }
   if(!carreiras.length) return el('content').innerHTML = podeCriar
-    ? emptyState('Nenhuma carreira ainda','Crie a primeira carreira (ex.: Carreira TI, Carreira Gestão). Depois cadastre os cargos de cada nível.','Nova carreira','modalCarreira()')
+    ? emptyState('Nenhuma carreira ainda','Crie a primeira carreira (ex.: Carreira TI, Carreira Gestão). Depois atribua os cargos de cada nível.','Nova carreira','modalCarreira()')
     : `<div class="empty">${ICON.route}<p>Nenhuma carreira cadastrada.</p></div>`;
-  const NIV=['Administrativo Jr','Administrativo Pl','Administrativo Sr','Monitor','Liderança'];
   el('content').innerHTML = `<div class="grid cols-2">${carreiras.map(cr=>{
     const preench=new Set(cr.niveisPreenchidos||[]);
     const meu = String(cr.criadoPor)===String(S.user.id) || S.user.perfil==='admin';
-    return `<div class="card">
-      <div class="card-h"><h3>${esc(cr.nome)}</h3><span class="pill cyan">${cr.qtdCargos}/5 cargos</span></div>
+    return `<div class="card card-click" onclick="abrirCarreira('${cr.id}')">
+      <div class="card-h"><h3>${esc(cr.nome)}</h3><span class="pill ${cr.qtdCargos>=5?'green':'cyan'}">${cr.qtdCargos}/5 cargos</span></div>
       ${cr.descricao?`<p class="page-sub" style="margin:2px 0 12px">${esc(cr.descricao)}</p>`:''}
       <div style="display:flex;flex-direction:column;gap:6px;margin:8px 0">
-        ${NIV.map(n=>`<div style="display:flex;align-items:center;gap:8px;font-size:.85rem">
+        ${NIVEIS_CARGO_LIST.map(n=>`<div style="display:flex;align-items:center;gap:8px;font-size:.85rem">
           <span style="width:16px;color:${preench.has(n)?'var(--green)':'var(--muted2)'}">${preench.has(n)?ICON.check:'○'}</span>
           <span style="color:${preench.has(n)?'var(--text)':'var(--muted2)'}">${n}</span></div>`).join('')}
       </div>
-      ${meu?`<div class="row-actions" style="margin-top:8px">
-        <button class="btn btn-ghost btn-sm" onclick='modalCarreira(${JSON.stringify(cr).replace(/'/g,"&#39;")})'>${ICON.edit}<span>Editar</span></button>
-        <button class="btn btn-danger btn-sm btn-icon" title="Excluir" onclick="excluirCarreira('${cr.id}','${esc(cr.nome)}')">${ICON.trash}</button>
-      </div>`:''}
+      <div class="row-actions" style="margin-top:8px" onclick="event.stopPropagation()">
+        <button class="btn btn-primary btn-sm" onclick="abrirCarreira('${cr.id}')">${ICON.route}<span>Ver cargos</span></button>
+        ${meu?`<button class="btn btn-ghost btn-sm" onclick='modalCarreira(${JSON.stringify(cr).replace(/'/g,"&#39;")})'>${ICON.edit}<span>Editar</span></button>
+        <button class="btn btn-danger btn-sm btn-icon" title="Excluir" onclick="excluirCarreira('${cr.id}','${esc(cr.nome)}')">${ICON.trash}</button>`:''}
+      </div>
     </div>`;
   }).join('')}</div>`;
 };
+
+function abrirCarreira(id){ S.carreiraAberta=id; go('carreiras'); }
+function voltarCarreiras(){ S.carreiraAberta=null; go('carreiras'); }
+
+async function viewDetalheCarreira(id){
+  let carreiras=[], cargos=[];
+  try{ carreiras=(await api('listarCarreiras')).carreiras; cargos=(await api('listarCargos',{carreiraId:id})).cargos; }
+  catch(e){ S.carreiraAberta=null; return el('content').innerHTML=`<div class="empty">${ICON.route}<p>${esc(e.message)}</p></div>`; }
+  const cr = carreiras.find(c=>String(c.id)===String(id));
+  if(!cr){ S.carreiraAberta=null; return go('carreiras'); }
+  const meu = String(cr.criadoPor)===String(S.user.id) || S.user.perfil==='admin';
+  setHead(cr.nome, cr.descricao || 'Atribua um cargo para cada um dos 5 níveis desta carreira.',
+    `<button class="btn btn-ghost" onclick="voltarCarreiras()">${ICON.back||''}<span>Voltar</span></button>`);
+  const porNivel = {}; cargos.forEach(c=>{ porNivel[c.nivelCarreira]=c; });
+  el('content').innerHTML = `
+    <div class="inline-note" style="margin-bottom:16px">${ICON.info}<span>Cada carreira tem 5 níveis. Atribua o cargo de cada nível informando o piso salarial.</span></div>
+    <div class="grid" style="gap:14px">
+      ${NIVEIS_CARGO_LIST.map((n,idx)=>{
+        const c = porNivel[n];
+        return `<div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="width:34px;height:34px;border-radius:10px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--cyan);flex:none">${idx+1}</div>
+          <div style="flex:1;min-width:180px">
+            <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted2);font-weight:700">${n}</div>
+            ${c?`<div style="font-weight:700;margin-top:3px">${esc(c.nome)}</div>
+              <div class="page-sub" style="font-size:.8rem">Piso: <span class="mono">${Number(c.piso||0)?money(c.piso):'—'}</span> · avanço +${Number(c.percentualAvanco||0)}%</div>`
+             :`<div class="page-sub" style="margin-top:3px">Nenhum cargo atribuído a este nível.</div>`}
+          </div>
+          ${meu?`<div class="row-actions">
+            ${c?`<button class="btn btn-ghost btn-sm" onclick='modalCargo(${JSON.stringify(c).replace(/'/g,"&#39;")})'>${ICON.edit}<span>Editar</span></button>
+                 <button class="btn btn-danger btn-sm btn-icon" title="Remover" onclick="excluirCargo('${c.id}','${esc(c.nome)}')">${ICON.trash}</button>`
+             :`<button class="btn btn-primary btn-sm" onclick="modalCargo(null,{carreiraId:'${cr.id}',nivelCarreira:'${n}'})">${ICON.plus}<span>Atribuir cargo</span></button>`}
+          </div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
 function modalCarreira(cr){
   const editing=!!cr;
   modal({title: editing?'Editar carreira':'Nova carreira', body:`<form id="fCr">
@@ -1151,10 +1198,10 @@ function modalCarreira(cr){
     <div class="field"><label>Descrição (opcional)</label><textarea name="descricao" placeholder="Sobre esta trilha de carreira…">${editing?esc(cr.descricao||''):''}</textarea></div>
   </form>`, footer:`<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" id="bCr">${editing?'Salvar':'Criar carreira'}</button>`});
   el('bCr').onclick=async()=>{ const f=el('fCr'); if(!f.reportValidity())return; const d=Object.fromEntries(new FormData(f)); const b=el('bCr');b.disabled=true;
-    try{ if(editing) await api('atualizarCarreira',Object.assign({id:cr.id},d)); else await api('criarCarreira',d); toast('Carreira salva.','ok'); closeModal(); go('carreiras'); }
+    try{ if(editing){ await api('atualizarCarreira',Object.assign({id:cr.id},d)); } else { const r=await api('criarCarreira',d); } toast('Carreira salva.','ok'); closeModal(); go('carreiras'); }
     catch(e){ toast(e.message,'err'); b.disabled=false; } };
 }
-async function excluirCarreira(id,nome){ confirmar(`Remover a carreira "${nome}"? (só é possível se não houver cargos nela)`, async()=>{ try{ await api('excluirCarreira',{id}); toast('Carreira removida.','ok'); go('carreiras'); }catch(e){ toast(e.message,'err'); } }); }
+async function excluirCarreira(id,nome){ confirmar(`Remover a carreira "${nome}"? (só é possível se não houver cargos nela)`, async()=>{ try{ await api('excluirCarreira',{id}); if(String(S.carreiraAberta)===String(id)) S.carreiraAberta=null; toast('Carreira removida.','ok'); go('carreiras'); }catch(e){ toast(e.message,'err'); } }); }
 
 /* ---------------- GERENTE · CARGOS ---------------- */
 VIEWS.cargos = async function(){
@@ -1191,8 +1238,13 @@ VIEWS.cargos = async function(){
     </div>`;}).join('')}</div>`;
 };
 const NIVEIS_CARGO = ['Administrativo Jr','Administrativo Pl','Administrativo Sr','Monitor','Liderança'];
-async function modalCargo(c){
+async function modalCargo(c, ctx){
   const editing=!!c;
+  ctx = ctx || {};
+  // carreira/nível vêm travados quando abrimos pelo detalhe da carreira
+  const fixCarreira = editing ? String(c.carreiraId||'') : String(ctx.carreiraId||'');
+  const fixNivel    = editing ? String(c.nivelCarreira||'') : String(ctx.nivelCarreira||'');
+  const travar = !!(ctx.carreiraId && ctx.nivelCarreira);
   const ehAdm = S.user.perfil==='admin';
   let usuarios=[], carreiras=[];
   if(ehAdm){ try{ usuarios = ordNome((await api('listarUsuarios')).usuarios.filter(u=>u.perfil!=='admin')); }catch(e){ usuarios=[]; } }
@@ -1205,10 +1257,15 @@ async function modalCargo(c){
     <div class="field"><label>Perfil esperado</label><textarea name="perfilEsperado" placeholder="Ex.: Aprende os processos, segue procedimentos, busca desenvolvimento e necessita de acompanhamento eventual.">${editing?esc(c.perfilEsperado):''}</textarea></div>
     <div class="field"><label>Critérios para promoção</label><textarea name="criteriosPromocao" placeholder="• Mínimo de 6 meses no nível.&#10;• Domínio das atividades da função.&#10;• Indicadores dentro da meta.">${editing?esc(c.criteriosPromocao):''}</textarea></div>
     <div class="field"><label>Competências</label><input name="competencias" value="${editing?esc(c.competencias):''}" placeholder="Organização, comprometimento, aprendizado, disciplina, qualidade, produtividade"/><div class="hint">Separe por vírgula. Estas competências viram os eixos do gráfico de teia na avaliação.</div></div>
-    <div class="form-row">
-      <div class="field"><label>Carreira</label><select name="carreiraId" required><option value="">— selecione —</option>${carreiras.map(cr=>`<option value="${cr.id}" ${editing&&String(c.carreiraId)===String(cr.id)?'selected':''}>${esc(cr.nome)}</option>`).join('')}</select></div>
-      <div class="field"><label>Nível na carreira</label><select name="nivelCarreira" required><option value="">— selecione —</option>${NIVEIS_CARGO.map(n=>`<option value="${n}" ${editing&&c.nivelCarreira===n?'selected':''}>${n}</option>`).join('')}</select></div>
-    </div>
+    ${travar
+      ? `<div class="form-row">
+           <div class="field"><label>Carreira</label><input value="${esc((carreiras.find(cr=>String(cr.id)===fixCarreira)||{}).nome||'')}" disabled/><input type="hidden" name="carreiraId" value="${fixCarreira}"/></div>
+           <div class="field"><label>Nível na carreira</label><input value="${esc(fixNivel)}" disabled/><input type="hidden" name="nivelCarreira" value="${fixNivel}"/></div>
+         </div>`
+      : `<div class="form-row">
+           <div class="field"><label>Carreira</label><select name="carreiraId" required><option value="">— selecione —</option>${carreiras.map(cr=>`<option value="${cr.id}" ${fixCarreira===String(cr.id)?'selected':''}>${esc(cr.nome)}</option>`).join('')}</select></div>
+           <div class="field"><label>Nível na carreira</label><select name="nivelCarreira" required><option value="">— selecione —</option>${NIVEIS_CARGO.map(n=>`<option value="${n}" ${fixNivel===n?'selected':''}>${n}</option>`).join('')}</select></div>
+         </div>`}
     ${campoSalario('cargoPiso', editing?c.piso:0, 'Piso salarial do cargo (R$)')}
     <div class="hint" style="margin-top:-8px">É o piso de referência deste cargo. O salário de cada pessoa é definido pelo superior imediato.</div>
     <div class="field"><label>% de avanço de função</label><input name="percentualAvanco" type="number" step="0.5" min="0" value="${editing?c.percentualAvanco:''}"/><div class="hint">Percentual de aumento ao avançar de função.</div></div>
@@ -1229,7 +1286,9 @@ async function modalCargo(c){
   el('bC').onclick=async()=>{ const f=el('fC'); if(!f.reportValidity())return; const d=Object.fromEntries(new FormData(f)); const b=el('bC');b.disabled=true;b.textContent='Salvando…';
     if(ehAdm) d.editores = pickSelecionados('cEd');
     const pi=el('cargoPiso'); if(pi) d.piso=parseMoeda(pi.value);
-    try{ if(editing) await api('atualizarCargo',Object.assign({id:c.id},d)); else await api('criarCargo',d); toast('Cargo salvo.','ok'); closeModal(); go('cargos'); }
+    try{ if(editing) await api('atualizarCargo',Object.assign({id:c.id},d)); else await api('criarCargo',d); toast('Cargo salvo.','ok'); closeModal();
+        // volta para o detalhe da carreira se estava atribuindo por lá; senão, lista de cargos
+        if(S.carreiraAberta) go('carreiras'); else go('cargos'); }
     catch(e){ toast(e.message,'err'); b.disabled=false; b.textContent=editing?'Salvar cargo':'Criar cargo'; } };
 }
 async function excluirCargo(id,nome){ confirmar(`Remover o cargo "${nome}"?`, async()=>{ try{ await api('excluirCargo',{id}); toast('Cargo removido.','ok'); go('cargos'); }catch(e){ toast(e.message,'err'); } }); }
