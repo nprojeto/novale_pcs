@@ -1135,7 +1135,7 @@ const NIVEIS_ADMIN_FRONT = ['Junior','Pleno','Senior'];
 VIEWS.carreiras = async function(){
   // Dois modos: lista de carreiras, ou detalhe de uma carreira (S.carreiraAberta).
   if(S.carreiraAberta){ return viewDetalheCarreira(S.carreiraAberta); }
-  const podeCriar = S.user.perfil==='admin' || S.user.nivel==='gerente' || !!(S.user.capacidades && S.user.capacidades.gestao);
+  const podeCriar = S.user.perfil==='admin' || S.user.nivel==='gerente' || (!!(S.user.capacidades && S.user.capacidades.gestao) && S.user.nivel!=='monitor');
   setHead('Carreiras','Suas trilhas de carreira. Clique numa carreira para ver e atribuir os 5 cargos dela.',
     podeCriar?`<button class="btn btn-primary" onclick="modalCarreira()">${ICON.plus}<span>Nova carreira</span></button>`:'');
   let carreiras=[];
