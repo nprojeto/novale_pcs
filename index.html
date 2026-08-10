@@ -1256,12 +1256,26 @@ async function modalCargo(c, ctx){
   const ehJunior = nivelEfetivo==='Junior';
   const herdaNome = ehAdminNivel && !ehJunior;                          // Pleno/Senior herdam a base
   const informaPiso = !ehAdminNivel || ehJunior;                        // Junior, Monitor, Liderança
-  // base do nome (para Pleno/Senior): pega de qualquer administrativo já existente na carreira
+  // base do nome e piso calculado (para Pleno/Senior) vêm dos cargos já existentes na carreira
   let baseNome = editing ? String(c.nome||'') : '';
-  if(herdaNome && !editing && fixCarreira){
-    try{ const cgs=(await api('listarCargos',{carreiraId:fixCarreira})).cargos;
+  let pisoCalculado = null;   // piso deste nível, derivado do nível anterior
+  const carreiraDoModal = editing ? String(c.carreiraId||'') : fixCarreira;
+  if(ehAdminNivel && carreiraDoModal){
+    try{
+      const cgs=(await api('listarCargos',{carreiraId:carreiraDoModal})).cargos;
       const adm=cgs.find(x=>NIVEIS_ADMIN_FRONT.indexOf(x.nivelCarreira)!==-1);
-      if(adm) baseNome=String(adm.nome||'');
+      if(herdaNome && adm) baseNome=String(adm.nome||'');
+      if(herdaNome){
+        // o backend já devolve o piso derivado; se este cargo existe, usa o piso dele;
+        // senão, deriva do anterior (nível imediatamente abaixo)
+        const jaExiste = cgs.find(x=>x.nivelCarreira===nivelEfetivo);
+        if(jaExiste && Number(jaExiste.piso||0)){ pisoCalculado = Number(jaExiste.piso); }
+        else {
+          const idx = NIVEIS_ADMIN_FRONT.indexOf(nivelEfetivo);
+          const anterior = cgs.find(x=>x.nivelCarreira===NIVEIS_ADMIN_FRONT[idx-1]);
+          if(anterior) pisoCalculado = Number(anterior.piso||0) * (1 + Number(anterior.percentualAvanco||0)/100);
+        }
+      }
     }catch(e){}
   }
   modal({wide:true, title: editing?'Editar cargo':'Novo cargo', body:`<form id="fC">
@@ -1283,7 +1297,9 @@ async function modalCargo(c, ctx){
          </div>`}
     ${informaPiso
       ? campoSalario('cargoPiso', editing?(c.pisoBase!==undefined?c.pisoBase:c.piso):0, 'Piso salarial do cargo (R$)')+'<div class="hint" style="margin-top:-8px">Piso de referência deste cargo. O salário de cada pessoa é definido pelo superior imediato.</div>'
-      : `<div class="inline-note">${ICON.info}<span>O piso deste nível é calculado automaticamente: piso do nível anterior + o % de avanço dele. Você define apenas o % de avanço abaixo.</span></div>`}
+      : `<div class="field"><label>Piso salarial do cargo (R$)</label>
+           <div class="salary-input"><span class="salary-prefix">R$</span><input value="${pisoCalculado!=null?fmtMoedaInput(pisoCalculado):'—'}" disabled/></div>
+           <div class="hint" style="margin-top:-2px">Calculado automaticamente: piso do nível anterior + o % de avanço dele. ${pisoCalculado==null?'Defina primeiro o nível anterior.':''}</div></div>`}
     <div class="field"><label>% de avanço de função${ehAdminNivel&&nivelEfetivo!=='Senior'?' (define o piso do próximo nível)':''}</label><input name="percentualAvanco" type="number" step="0.5" min="0" value="${editing?c.percentualAvanco:''}"/><div class="hint">${ehAdminNivel&&nivelEfetivo!=='Senior'?'O piso do próximo nível será este piso acrescido deste percentual.':'Percentual de aumento ao avançar de função.'}</div></div>
     ${ehAdm?`<div class="field"><label>Quem pode editar e atribuir este cargo</label>
       ${usuarios.length?`<input class="pick-search" id="cEd_q" placeholder="Buscar pessoa…" autocomplete="off" oninput="pickFiltrar('cEd')"/>
