@@ -1353,7 +1353,8 @@ VIEWS.colaboradores = async function(){
         <button class="btn btn-ghost btn-sm btn-icon" title="Feedbacks" onclick="abrirFeedbacks('${c.id}','${esc(c.nome)}')">${ICON.message}</button>
         ${(S.user.perfil==='admin'||S.user.nivel==='gerente')?`<button class="btn btn-ghost btn-sm btn-icon" title="Nova avaliação" onclick="iniciarAvaliacao('${c.id}','${esc(c.nome)}')">${ICON.chart}</button>`:''}
         <button class="btn btn-ghost btn-sm btn-icon" title="Senha" onclick="modalResetSenha('${c.id}','${esc(c.nome)}')">${ICON.key}</button>
-        ${idsLidero.has(c.areaId)?`<button class="btn btn-ghost btn-sm" title="Tirar da área e deixar disponível" onclick="liberarPessoa('${c.id}','${esc(c.nome)}',()=>go('colaboradores'))">Remover da área</button>`:''}
+        ${(c.euGerencioArea && !c.ehResponsavelArea)?`<button class="btn btn-ghost btn-sm" title="Tirar da área e deixar disponível" onclick="liberarPessoa('${c.id}','${esc(c.nome)}',()=>go('colaboradores'))">Remover da área</button>`:''}
+        ${(c.euGerencioArea && c.ehResponsavelArea)?`<button class="btn btn-ghost btn-sm" title="Esta pessoa é responsável da área — troque o responsável para liberá-la" onclick="avisoResponsavelArea('${esc(c.nome)}','${c.areaId}','${esc(c.areaNome||'')}')">Remover da área</button>`:''}
       </td></tr>`).join('')}</tbody></table>
     <div id="buscaEquipe_vazio" class="empty" style="display:none">${ICON.users}<p>Ninguém encontrado com esse termo.</p></div>
   </div>`;
@@ -1868,6 +1869,10 @@ async function modalAddPessoa(areaId,areaNome){
       const n=ids.length+(novo?1:0);
       toast(n>1?(n+' pessoas adicionadas à área.'):'Pessoa adicionada à área.','ok'); closeModal(); go('organograma');
     }catch(e){ toast(e.message,'err'); b.disabled=false; b.textContent='Adicionar'; } };
+}
+function avisoResponsavelArea(nome, areaId, areaNome){
+  modal({title:'Pessoa é responsável da área', body:`<div class="inline-note">${ICON.info}<span><b>${esc(nome)}</b> é a responsável da área <b>${esc(areaNome)}</b>. Para tirá-la da equipe, primeiro troque o responsável da área (ou remova a área). Depois ela fica disponível para ser realocada.</span></div>`,
+    footer:`<button class="btn btn-ghost" onclick="closeModal()">Fechar</button><button class="btn btn-primary" onclick="closeModal();verArea('${areaId}')">Abrir a área</button>`});
 }
 async function liberarPessoa(id,nome,voltar){
   confirmar(`Remover "${nome}" desta área? A pessoa deixa de responder a você e volta para o banco de disponíveis, podendo ser adicionada a outra área.`, async()=>{
