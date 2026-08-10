@@ -1351,7 +1351,7 @@ VIEWS.colaboradores = async function(){
       <td class="row-actions">
         <button class="btn btn-ghost btn-sm" title="Editar cadastro, cargo e salário" onclick='modalEditarUsuario(${JSON.stringify(c).replace(/'/g,"&#39;")},{voltar:"colaboradores"})'>${ICON.edit}<span>Editar</span></button>
         <button class="btn btn-ghost btn-sm btn-icon" title="Feedbacks" onclick="abrirFeedbacks('${c.id}','${esc(c.nome)}')">${ICON.message}</button>
-        <button class="btn btn-ghost btn-sm btn-icon" title="Nova avaliação" onclick="iniciarAvaliacao('${c.id}','${esc(c.nome)}')">${ICON.chart}</button>
+        ${(S.user.perfil==='admin'||S.user.nivel==='gerente')?`<button class="btn btn-ghost btn-sm btn-icon" title="Nova avaliação" onclick="iniciarAvaliacao('${c.id}','${esc(c.nome)}')">${ICON.chart}</button>`:''}
         <button class="btn btn-ghost btn-sm btn-icon" title="Senha" onclick="modalResetSenha('${c.id}','${esc(c.nome)}')">${ICON.key}</button>
         ${idsLidero.has(c.areaId)?`<button class="btn btn-ghost btn-sm" title="Tirar da área e deixar disponível" onclick="liberarPessoa('${c.id}','${esc(c.nome)}',()=>go('colaboradores'))">Remover da área</button>`:''}
       </td></tr>`).join('')}</tbody></table>
@@ -1388,8 +1388,8 @@ async function abrirColaborador(id){
       `<div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="go('colaboradores')">Voltar</button>
         ${c.podeEditar?`<button class="btn btn-ghost btn-sm" onclick='modalEditarUsuario(${JSON.stringify(c).replace(/'/g,"&#39;")},{voltar:"colaboradores"})'>${ICON.edit}<span>Editar</span></button>`:''}
-        ${c.avalioDiretamente?`<button class="btn btn-ghost btn-sm" onclick="iniciarAvaliacao('${c.id}','${esc(c.nome)}')">${ICON.chart}<span>Nova avaliação</span></button>
-        <button class="btn btn-ghost btn-sm" onclick="modalResetSenha('${c.id}','${esc(c.nome)}')">${ICON.key}<span>Senha</span></button>`:''}
+        ${(c.avalioDiretamente && (S.user.perfil==='admin'||S.user.nivel==='gerente'))?`<button class="btn btn-ghost btn-sm" onclick="iniciarAvaliacao('${c.id}','${esc(c.nome)}')">${ICON.chart}<span>Nova avaliação</span></button>`:''}
+        ${c.avalioDiretamente?`<button class="btn btn-ghost btn-sm" onclick="modalResetSenha('${c.id}','${esc(c.nome)}')">${ICON.key}<span>Senha</span></button>`:''}
       </div>`);
     const info=[
       ['E-mail', c.email||'—'], ['Telefone', c.telefone||'—'], ['Login', '@'+c.login],
