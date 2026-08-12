@@ -1650,6 +1650,13 @@ function orgPodeGerir(a){
 }
 // Criar área/subárea é exclusivo de admin e gerente (responsáveis/monitores não criam).
 function podeCriarArea(){ return S.user.perfil==='admin' || S.user.nivel==='gerente'; }
+// Criar SUBÁREA dentro de uma área 'a': admin sempre; gerente se 'a' está na hierarquia
+// dele (é responsável de 'a' ou de alguma área acima de 'a').
+function orgPodeCriarSub(a){
+  if(S.user.perfil==='admin') return true;
+  if(S.user.nivel!=='gerente') return false;
+  return orgPodeGerir(a); // responsável direto de 'a' OU superior na árvore
+}
 function orgPodeAddPessoa(a){ return orgPodeGerir(a) || orgCanTransfer(a); }
 function orgNode(a, areas){
   const filhos = ordNome(areas.filter(x=>x.paiId===a.id));
@@ -1753,7 +1760,7 @@ async function verArea(id){
         ${podeGerir?'<div class="hint" style="margin-top:8px">Ao remover, a pessoa volta para o banco de disponíveis e pode ser adicionada a outra área.</div>':''}`
     : '<span class="page-sub">Nenhuma pessoa nesta área ainda.</span>';
   const acoes = [];
-  if(podeCriarArea()) acoes.push(`<button class="btn btn-ghost btn-sm" onclick='modalNovaArea("${a.id}","${esc(a.nome)}")'>${ICON.plus}<span>Subárea</span></button>`);
+  if(orgPodeCriarSub(a)) acoes.push(`<button class="btn btn-ghost btn-sm" onclick='modalNovaArea("${a.id}","${esc(a.nome)}")'>${ICON.plus}<span>Subárea</span></button>`);
   if(addp)  acoes.push(`<button class="btn btn-ghost btn-sm" onclick='modalAddPessoa("${a.id}","${esc(a.nome)}")'>${ICON.users}<span>Pessoa</span></button>`);
   if(gerir) acoes.push(`<button class="btn btn-ghost btn-sm" onclick='modalEditarArea(${aj})'>${ICON.edit}<span>Editar</span></button>`);
   if(transf&&a.paiId) acoes.push(`<button class="btn btn-ghost btn-sm" onclick='modalMoverArea(${aj})'>${ICON.move}<span>Transferir</span></button>`);
